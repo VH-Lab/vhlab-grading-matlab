@@ -1,7 +1,7 @@
-function students=GoogleSpeadsheet2students(docid)
+function students=GoogleSpreadsheet2students(docid)
 % GoogleSpeadsheet2students - read a student list from a Google spreadsheet
 % 
-% STUDENTS = GOOGLESPEADSHEET2STUDENTS(DOCID)
+% STUDENTS = GOOGLESPREADSHEET2STUDENTS(DOCID)
 %
 % Given a Google Spreadsheet, returns a structure of students. It is assumed that the
 % Google Speadsheet has fields "Student" and "Email" that have the name and email address.
@@ -14,16 +14,16 @@ function students=GoogleSpeadsheet2students(docid)
 %    othername - any other text in the student's name
 %    email  - the student's email address
 %
-% Requires: GetGoogleSpeadsheet (or https://github.com/VH-Lab/vhlab_thirdparty, which includes this)
+% Requires: GetGoogleSpreadsheet (or https://github.com/VH-Lab/vhlab_thirdparty, which includes this)
 %  
 
-myspeadsheet = GetGoogleSpeadsheet(docid);
+myspreadsheet = GetGoogleSpreadsheet(docid);
 
 namecolumn_label = 'Student';
 emailcolumn_label = 'Email';
 
-namecolumn = find(strcmp(namecolumn_label, myspreadsheet{1,:}));
-emailcolumn = find(strcmp(emailcolumn, myspreadsheet{1,:}));
+namecolumn = find(strcmp(namecolumn_label, myspreadsheet(1,:)));
+emailcolumn = find(strcmp(emailcolumn_label, myspreadsheet(1,:)));
 
 if isempty(namecolumn) | isempty(emailcolumn) | numel(namecolumn)>1 | numel(emailcolumn)>1,
 	error(['cannot identify columns for names or email addresses.']);
@@ -39,16 +39,16 @@ for k=2:size(myspreadsheet(:,namecolumn)),
 		error(['could not process student string ' student_string '.']);
 	end;
 	lastname = strtrim(student_string(1:comma-1)); % trim whitespace also
-	restofname = student_string(comma+1:end);
+	restofname = strtrim(student_string(comma+1:end));
 	space = find(restofname==' ');
 	if isempty(space),
 		firstname = strtrim(restofname);
 		restofname = '';
 	else,
 		firstname = strtrim(restofname(1:space-1));
-		restofname = strtrim(restofname(space+1));
+		restofname = strtrim(restofname(space+1:end));
 	end
-	students(end+1) = struct('surname',lastname,'firstname',firstname,'restofname',restofname,'email',email);
+	students(end+1) = struct('surname',lastname,'firstname',firstname,'othername',restofname,'email',email_string);
 end
 
 
