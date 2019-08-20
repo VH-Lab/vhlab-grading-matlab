@@ -1,0 +1,76 @@
+function b = vhgradeassignment(parentdir, inputitemlist, itemname, forceRegrade)
+% VHGRADEASSIGNMENT - grade an assignment where each student's answers are in a folder
+%
+% B = VHGRADEASSIGNMENT(PARENTDIR, INPUTITEMLIST, [ITEMNAME], [FORCEREGRADE])
+%
+% Grades a SET of assignments, each with its own subdirectory in PARENTDIR, according to the
+% rubric INPUTITEMLIST. If a specific ITEMNAME is provided, then only that item is graded.
+% FORCEREGRADE will grade an item even if it has already been saved in the 'GRADING' subfolder.
+%
+% The INPUTITEMLIST should be a struct array with the following fields:
+%
+% Fieldname                         | Description
+% -----------------------------------------------------------------------------------
+% Item_name                         | The item name 
+% Subfolder                         | Subfolder to use, if any
+% Item_filename                     | The item's filename in the GRADING subfolder
+% Points_possible                   | The points possible
+% Description                       | A string of the description of what is being sought
+% Skills                            | A cell array of strings of all the skills used in this problem
+%                                   |  (e.g., {'coding','loops','stats'} 
+% Comment_1_default                 | Default first comment string
+% Comment_2_default                 | Default second comment string
+% Parameters                        | A structure array of 2 types:
+%                                   |    can have fields: varname, value, tolerance to test variable names
+%                                   |    can have field: manual (opens GUI window for completion)
+%                                   |    can have field: response_name (opens GUI window for completion)
+%
+% RESULTS of the grading will be saved in each subfolder of PARENTFOLDER.
+% The results will be a structure array with the following fields:
+%
+% Fieldname                         | Description
+% -----------------------------------------------------------------------------------
+% Item_name                         | The item name (from INPUTITEMLIST)
+% Subfolder                         | The subfolder within the experiment to examine
+% Points_possible                   | The points possible (from INPUTITEMLIST)
+% Description                       | A string of the description of what is being sought
+%                                   |   (from INPUTITEMLIST)
+% Skills                            | A cell array of strings of all the skills used in this problem
+%                                   |  (e.g., {'coding','loops','stats'}  (from INPUTITEMLIST)
+% Points_earned                     | The number of points earned
+% Comment_1                         | A first comment
+% Comment_2                         | A second comment
+
+
+if nargin<3,
+	itemname = {itemlist.Item_name};
+else,
+	if ~iscell(itemname),
+		itemname = {itemname};
+	end;
+end;
+
+if nargin<4,
+	forceRegrade = 0;
+end;
+
+[I,K1,K2] = intersect({itemlist.Item_name},itemname);
+
+[pathname,dirname] = fileparts(parentdir),
+
+d = dirstrip(dir(parentdir));
+
+for i=1:numel(d),
+	if d(i).isdir,
+		% get ready to grade
+		addpath(genpath([parentdir filesep d(i).name]));
+
+		for k=1:numel(K2),
+			vhgrade_question([parentdir filesep d(i).name], inputitemlist(K2(k)));
+		end;
+
+		rmpath(genpath([parentdir filesep d(i).name]));
+
+	end;
+
+end;
