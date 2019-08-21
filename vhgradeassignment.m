@@ -15,15 +15,16 @@ function b = vhgradeassignment(parentdir, inputitemlist, itemname, forceRegrade)
 % Subfolder                         | Subfolder to use, if any
 % Item_filename                     | The item's filename in the GRADING subfolder
 % Points_possible                   | The points possible
+% Code                              | The code to run
 % Description                       | A string of the description of what is being sought
 % Skills                            | A cell array of strings of all the skills used in this problem
 %                                   |  (e.g., {'coding','loops','stats'} 
 % Comment_1_default                 | Default first comment string
 % Comment_2_default                 | Default second comment string
 % Parameters                        | A structure array of 2 types:
-%                                   |    can have fields: varname, value, tolerance to test variable names
-%                                   |    can have field: manual (opens GUI window for completion)
-%                                   |    can have field: response_name (opens GUI window for completion)
+%                                   |    can have fields: type='vartest', varname, value, tolerance to test variable names
+%                                   |    can have field: type='manual', (opens GUI window for completion)
+%                                   |    can have field: type='response_name', response_name (opens GUI window for completion)
 %
 % RESULTS of the grading will be saved in each subfolder of PARENTFOLDER.
 % The results will be a structure array with the following fields:
@@ -31,6 +32,7 @@ function b = vhgradeassignment(parentdir, inputitemlist, itemname, forceRegrade)
 % Fieldname                         | Description
 % -----------------------------------------------------------------------------------
 % Item_name                         | The item name (from INPUTITEMLIST)
+% Item_filename                     | The itme's filename in the GRADING folder 
 % Subfolder                         | The subfolder within the experiment to examine
 % Points_possible                   | The points possible (from INPUTITEMLIST)
 % Description                       | A string of the description of what is being sought
