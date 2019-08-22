@@ -51,7 +51,7 @@ if ~isempty(inputitem.Code),
 	catch,
 		% code didn't run successfully
 		grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' lasterr];
-		save(filename,'grade');
+		save(filename,'grade','-mat');
 		return;
 	end;
 end;
@@ -66,7 +66,7 @@ if strcmpi(inputitem.Parameters(1).type,'response_name'),
 			input.Parameters(1).response_name);
 	catch,
 		grade.Comment_1 = ['Response ' input.Parameters(1).response_name ' not found in response.md'];
-		save(filename,'grade');
+		save(filename,'grade','-mat');
 		return;
 	end;
 else,
@@ -94,7 +94,7 @@ if strcmpi(inputitem.Parameters(1).type, 'vartest'),
 		if ~variable_matched_expected,
 			grade.Comment_1 = ['Variable ' varname ' value did not match target value within tolerance.'];
 			variable_matched_expected = 0;
-			save(filename,'grade');
+			save(filename,'grade','-mat');
 			return;
 		end;
 	end;
@@ -103,7 +103,7 @@ end;
  % Step 4: ask for user input if needed
 
 if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name'),
-	h=vhgraderesponsegui('new',vhgradedirname, grade, response_string);
+	h=vhgraderesponsegui('command', 'new','dirname',vhgradedirname, 'grade', grade, 'response_string', response_string,'inputgrade',inputitem);
 	uiwait(h);
 end;
 
