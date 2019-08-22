@@ -1,7 +1,7 @@
-function b = vhgradeassignment(parentdir, inputitemlist, itemname, forceRegrade)
+function b = vhgradeassignment(parentdir, assignmentname, inputitemlist, itemname, forceRegrade)
 % VHGRADEASSIGNMENT - grade an assignment where each student's answers are in a folder
 %
-% B = VHGRADEASSIGNMENT(PARENTDIR, INPUTITEMLIST, [ITEMNAME], [FORCEREGRADE])
+% B = VHGRADEASSIGNMENT(PARENTDIR, ASSIGNMENTNAME, INPUTITEMLIST, [ITEMNAME], [FORCEREGRADE])
 %
 % Grades a SET of assignments, each with its own subdirectory in PARENTDIR, according to the
 % rubric INPUTITEMLIST. If a specific ITEMNAME is provided, then only that item is graded.
@@ -45,7 +45,7 @@ function b = vhgradeassignment(parentdir, inputitemlist, itemname, forceRegrade)
 
 
 if nargin<3,
-	itemname = {itemlist.Item_name};
+	itemname = {inputitemlist.Item_name};
 else,
 	if ~iscell(itemname),
 		itemname = {itemname};
@@ -56,23 +56,29 @@ if nargin<4,
 	forceRegrade = 0;
 end;
 
-[I,K1,K2] = intersect({itemlist.Item_name},itemname);
+[I,K1,K2] = intersect({inputitemlist.Item_name},itemname);
 
-[pathname,dirname] = fileparts(parentdir),
-
-d = dirstrip(dir(parentdir));
+d = dirstrip(dir(parentdir)),
 
 for i=1:numel(d),
 	if d(i).isdir,
 		% get ready to grade
+		warnstate=warning('state');
+		warning off;
+		rmpath(genpath(parentdir)); % make sure we have no other graded files on the path
+		warning('state', warnstate);
+
 		addpath(genpath([parentdir filesep d(i).name]));
 
 		for k=1:numel(K2),
-			vhgrade_question([parentdir filesep d(i).name], inputitemlist(K2(k)));
+			inputitemlist(K2(k)),
+			vhgradequestion([parentdir filesep d(i).name], inputitemlist(K2(k)),forceRegrade);
 		end;
 
 		rmpath(genpath([parentdir filesep d(i).name]));
 
+		vhgradesummary([parentdir filesep d(i).name], assignmentname, inputitemlist);
 	end;
-
 end;
+
+

@@ -15,13 +15,14 @@ if nargin<3,
 	forceRegrade = 0;
 end;
 
-grade_directory = [dirname filesep 'GRADING'];
+grade_directory = [vhgradedirname filesep 'GRADING'];
 
 filename = [grade_directory filesep inputitem.Item_filename];
 
-try,
-	mkdir(grade_directory);
-end;
+ws = warning('state');
+warning off;
+try, mkdir(grade_directory); end;
+warning('state',ws);
 
 if exist(filename,'file'),
 	if ~forceRegrade,
@@ -63,9 +64,9 @@ if strcmpi(inputitem.Parameters(1).type,'response_name'),
  % load the response string
 	try,
 		response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
-			input.Parameters(1).response_name);
+			inputitem.Parameters(1).response_name);
 	catch,
-		grade.Comment_1 = ['Response ' input.Parameters(1).response_name ' not found in response.md'];
+		grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
 		save(filename,'grade','-mat');
 		return;
 	end;
@@ -78,10 +79,12 @@ end;
 if strcmpi(inputitem.Parameters(1).type, 'vartest'),
 	variable_matched_expected = 1;
 
+	comment = {};
+
 	for i_loop_var=1:numel(inputitem.Parameters),
-		varname = inputname.Parameters(i_loop_var).varname;
-		value = inputname.Parameters(i_loop_var).value;
-		tolerance = inputname.Parameters(i_loop_var).tolerance;
+		varname = inputitem.Parameters(i_loop_var).varname;
+		value = inputitem.Parameters(i_loop_var).value;
+		tolerance = inputitem.Parameters(i_loop_var).tolerance;
 		compare = [];
 		try,
 			compare = evalin('base', varname);
@@ -96,14 +99,24 @@ if strcmpi(inputitem.Parameters(1).type, 'vartest'),
 			variable_matched_expected = 0;
 			save(filename,'grade','-mat');
 			return;
+		else,
+			comment{end+1} = ['Variable ' varname ' value matched target value within tolerance.']; 
 		end;
+	end;
+
+	if variable_matched_expected, % we are done
+		grade.Comment_1 = comment;
+		grade.Points_earned = inputitem.Points_possible;
+		save(filename,'grade','-mat');
+		return;
 	end;
 end;
 
  % Step 4: ask for user input if needed
 
 if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name'),
-	h=vhgraderesponsegui('command', 'new','dirname',vhgradedirname, 'grade', grade, 'response_string', response_string,'inputgrade',inputitem);
+	h=vhgraderesponsegui('command', 'new', 'dirname', vhgradedirname, 'grade', grade, ...
+		'response_string', response_string, 'inputgrade',inputitem);
 	uiwait(h);
 end;
 
