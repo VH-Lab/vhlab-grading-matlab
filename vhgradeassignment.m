@@ -44,7 +44,7 @@ function b = vhgradeassignment(parentdir, assignmentname, inputitemlist, itemnam
 % Comment_2                         | A second comment
 
 
-if nargin<3,
+if nargin<4,
 	itemname = {inputitemlist.Item_name};
 else,
 	if ~iscell(itemname),
@@ -52,13 +52,13 @@ else,
 	end;
 end;
 
-if nargin<4,
+if nargin<5,
 	forceRegrade = 0;
 end;
 
 [I,K1,K2] = intersect({inputitemlist.Item_name},itemname);
 
-d = dirstrip(dir(parentdir)),
+d = dirstrip(dir(parentdir));
 
 for i=1:numel(d),
 	if d(i).isdir,
@@ -70,9 +70,10 @@ for i=1:numel(d),
 
 		addpath(genpath([parentdir filesep d(i).name]));
 
-		for k=1:numel(K2),
-			inputitemlist(K2(k)),
-			vhgradequestion([parentdir filesep d(i).name], inputitemlist(K2(k)),forceRegrade);
+		for k=1:numel(K1),
+			inputitemlist(K1(k)),
+			[parentdir filesep d(i).name]
+			vhgradequestion([parentdir filesep d(i).name], inputitemlist(K1(k)),forceRegrade);
 		end;
 
 		rmpath(genpath([parentdir filesep d(i).name]));

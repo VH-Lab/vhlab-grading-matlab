@@ -99,6 +99,7 @@ switch command,
 
 		uicontrol(button, 'position',[300 top-row*16 100 30],'string','OK','tag','OKBt');
 		uicontrol(button, 'position',[400+10 top-row*16 100 30],'string','Cancel','tag','CancelBt');
+		uicontrol(button, 'position',[500+20 top-row*16 100 30],'string','Full Credit','tag','FullCreditBt');
 
 	case 'OKBt',
 		try,
@@ -109,6 +110,24 @@ switch command,
 			if ud.grade.Points_earned<0,
 				errordlg(['Points no good.']);
 			end;
+		catch,
+			errordlg(['Error: ' lasterr]);
+			return; % make user do more
+		end;
+
+		% if we are here, we are ready to save
+		grade_directory = [ud.dirname filesep 'GRADING'];
+		filename = [grade_directory filesep ud.grade.Item_filename];
+		grade = ud.grade;
+		save(filename,'grade','-mat');
+
+		close(fig);
+
+	case 'FullCreditBt',
+		try,
+			ud.grade.Comment_1 = get(findobj(fig,'tag','comment1Edit'),'string');
+			ud.grade.Comment_2 = get(findobj(fig,'tag','comment2Edit'),'string');
+			ud.grade.Points_earned = ud.grade.Points_possible;
 		catch,
 			errordlg(['Error: ' lasterr]);
 			return; % make user do more
