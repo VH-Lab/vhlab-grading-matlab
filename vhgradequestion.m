@@ -45,6 +45,7 @@ grade.Skills = inputitem.Skills;
 grade.Comment_1 = '';
 grade.Comment_2 = '';
 grade.Points_earned = 0;
+grade.CodeError = 0;
 
  % Step 0: set present working directory to Subfolder
 
@@ -58,6 +59,8 @@ if ~isempty(inputitem.Code),
 	catch,
 		% code didn't run successfully
 		grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' lasterr];
+		% here we need to pop up a dialog
+		grade.CodeError = 1;
 		save(filename,'grade','-mat');
 		return;
 	end;
@@ -68,13 +71,15 @@ end;
 if strcmpi(inputitem.Parameters(1).type,'response_name'),
 
  % load the response string
-	try,
-		response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
-			inputitem.Parameters(1).response_name);
-	catch,
-		grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
-		save(filename,'grade','-mat');
-		return;
+	if ~isempty(inputitem.Parameters(1).response_name),
+		try,
+			response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
+				inputitem.Parameters(1).response_name);
+		catch,
+			grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
+			save(filename,'grade','-mat');
+			return;
+		end;
 	end;
 else,
 	response_string = '';
@@ -168,10 +173,22 @@ end;
 
  % Step 5: ask for user input if needed
 
-if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name'),
+if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name') | grade.CodeError,
+	mycodewindow = [];
+	if grade.CodeError,
+		text_total = {};
+		for i=1:numel(inputitem.CodeFiles),
+			t_ = text2cellstr(inputitem.CodeFiles{i});
+			text_total = cat(2,text_total,{['FILE: ' inputItem.CodeFiles{i} ' -----------------'},t_);
+		end;
+		mycodewindow = messagebox(text_total, 'Code window');
+	end;
 	h=vhgraderesponsegui('command', 'new', 'dirname', vhgradedirname, 'grade', grade, ...
 		'response_string', response_string, 'inputgrade',inputitem);
 	uiwait(h);
+	if ~isempty(mycodewindow),
+		delete(mycodewindow);
+	end;
 end;
 
 cd(currpwd);
