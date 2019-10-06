@@ -47,6 +47,8 @@ grade.Comment_2 = '';
 grade.Points_earned = 0;
 grade.CodeError = 0;
 
+inputitem_alt = inputitem; % in case we edit the standard comments
+
  % Step 0: set present working directory to Subfolder
 
 cd([vhgradedirname filesep grade.Subfolder]);
@@ -60,9 +62,12 @@ if ~isempty(inputitem.Code),
 		% code didn't run successfully
 		grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' lasterr];
 		% here we need to pop up a dialog
-		grade.CodeError = 1;
-		save(filename,'grade','-mat');
-		return;
+		grade.CodeError = 2;
+		if iscell(grade.Comment_1),
+			inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' ') 
+		else,
+			inputitem_alt.Comment_1_default = char(strrep(grade.Comment_1,char(10),';'));
+		end;
 	end;
 end;
 
@@ -110,8 +115,14 @@ if strcmpi(inputitem.Parameters(1).type, 'vartest'),
 		if ~variable_matched_expected,
 			grade.Comment_1 = ['Variable ' varname ' value did not match target value within tolerance.'];
 			variable_matched_expected = 0;
-			save(filename,'grade','-mat');
-			return;
+                        if grade.CodeError > 0,
+				inputitem_alt.Comment_1_default = strjoin(cat(2,{inputitem_alt.Comment_1_default},grade.Comment_1{:}), '  ');
+                        else,
+                                grade.CodeError = 1;
+                                inputitem_alt.Comment_1_default = cat(2,grade.Comment_1{:});
+                                inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' ');
+                        end;
+
 		else,
 			comment{end+1} = ['Variable ' varname ' value matched target value within tolerance.']; 
 		end;
@@ -156,16 +167,21 @@ if strcmpi(inputitem.Parameters(1).type, 'anyvartest'),
 			end;
 		end;
 		if ~found_this_value, % we reached end of j loop and no variable matched 
-			grade.Comment_1 = ['No variable matched target value ' mat2str(value) ' within tolerance.'];
+			grade.Comment_1 = cat(2,comment,{['No variable matched target value ' mat2str(value) ' within tolerance.']});
 			variable_matched_expected = 0;
-			save(filename,'grade','-mat');
-			return;
+			if grade.CodeError > 0,
+				inputitem_alt.Comment_1_default = strjoin(cat(2,{inputitem_alt.Comment_1_default},grade.Comment_1{:}), '  ');
+			else,
+				grade.CodeError = 1;
+				inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' '); 
+			end;
 		end;
 	end;
 
 	if variable_matched_expected, % we are done
 		grade.Comment_1 = comment;
 		grade.Points_earned = inputitem.Points_possible;
+		inputitem_alt.Comment_1_default = grade.Comment_1;
 		save(filename,'grade','-mat');
 		return;
 	end;
@@ -179,12 +195,13 @@ if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters
 		text_total = {};
 		for i=1:numel(inputitem.CodeFiles),
 			t_ = text2cellstr(inputitem.CodeFiles{i});
-			text_total = cat(2,text_total,{['FILE: ' inputItem.CodeFiles{i} ' -----------------'},t_);
+			text_total = cat(2,text_total,{['FILE: ' inputitem.CodeFiles{i} ' -----------------']},t_);
 		end;
-		mycodewindow = messagebox(text_total, 'Code window');
+		mycodewindow = msgbox(text_total, 'Code window');
 	end;
+	inputitem_alt,
 	h=vhgraderesponsegui('command', 'new', 'dirname', vhgradedirname, 'grade', grade, ...
-		'response_string', response_string, 'inputgrade',inputitem);
+		'response_string', response_string, 'inputgrade',inputitem_alt);
 	uiwait(h);
 	if ~isempty(mycodewindow),
 		delete(mycodewindow);
