@@ -191,12 +191,15 @@ end;
 
 if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name') | grade.CodeError,
 	mycodewindow = [];
-	if grade.CodeError,
+	if 1|grade.CodeError,
 		text_total = {};
 		for i=1:numel(inputitem.CodeFiles),
 			t_ = text2cellstr(inputitem.CodeFiles{i});
+            if eqlen(t_,{-1}), t_ = {''}; end;
 			text_total = cat(2,text_total,{['FILE: ' inputitem.CodeFiles{i} ' -----------------']},t_);
 		end;
+        if isempty(text_total), text_total = ' '; end;
+        text_total
 		mycodewindow = msgbox(text_total, 'Code window');
 	end;
 	inputitem_alt,
