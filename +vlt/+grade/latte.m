@@ -36,6 +36,7 @@ function qstruct = latte(dirname, fieldname, qstruct_continue, varargin)
 %  hw2_q1a = vlt.grade.latte(dirname,'q1a',[]);
 %  hw2_q1b = vlt.grade.latte(dirname,'q1b',[]);
 %  hw2_q1c = vlt.grade.latte(dirname,'q1c',[]);
+%  hw2_q1d = vlt.grade.latte(dirname,'q1d',[]);
 %  cellstr = vlt.grade.latte_summarize(hw2_q1a,hw2_q1b,hw2_q1c,hw2_q1d);
 %  vlt.file.cellstr2text('output.txt',cellstr);
 %
