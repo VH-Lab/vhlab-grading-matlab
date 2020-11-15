@@ -95,7 +95,7 @@ for i=1:numel(answer),
 	a_text = cat(2,a_text,[upper(tokens_here(i)) ') ']);
 	a_text = cat(2,a_text,[answer{i} newline]);
 end;
-a_text = cat(2,a_text,['ANSWER: ' correct_answer newline]);
+a_text = cat(2,a_text,['ANSWER: ' upper(correct_answer) newline]);
 
 tokens_here = upper(tokens_here);
 
