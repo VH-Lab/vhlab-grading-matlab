@@ -26,7 +26,7 @@ present = [];
 for i=1:numel(inputitemlist),
 	filename = [grade_directory filesep inputitemlist(i).Item_filename];
 
-	if exist(filename,'file'),
+	if isfile(filename),
 		present(i) = 1;
 		g = load(filename,'-mat');
 		points_earned = points_earned + g.grade.Points_earned;
@@ -40,7 +40,7 @@ for i=1:numel(inputitemlist),
 
 	filename = [grade_directory filesep inputitemlist(i).Item_filename];
 
-	if exist(filename,'file'),
+	if isfile(filename),
 		g = load(filename,'-mat');
 		text_out = cat(2,text_out, inter_question_text);
 		text_out{end+1} = ['Item: ' g.grade.Item_name];

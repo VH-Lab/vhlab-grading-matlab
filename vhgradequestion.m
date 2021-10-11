@@ -26,7 +26,7 @@ warning off;
 try, mkdir(grade_directory); end;
 warning('state',warns);
 
-if exist(filename,'file'),
+if isfile(filename),
 	if ~forceRegrade,
 		grade = load(filename);
 		grade = grade.grade;

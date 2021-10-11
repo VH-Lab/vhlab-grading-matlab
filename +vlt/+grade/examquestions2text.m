@@ -19,7 +19,7 @@ vlt.data.assign(varargin{:});
 t = '';
 
 for i=1:numel(question_db),
-	if question_db.isexamcandidate > 0,
+	if question_db(i).isexamcandidate > 0,
 		if IncludeHeaders,
 			str_beg = ['BEGIN QUESTION ' int2str(i) ' ----' newline];
 			str_end = ['END QUESTION ' int2str(i) ' ----' newline];
