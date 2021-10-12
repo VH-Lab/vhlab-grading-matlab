@@ -56,6 +56,8 @@ if nargin<5,
 	forceRegrade = 0;
 end;
 
+assignmentname = char(assignmentname);
+
 [I,K1,K2] = intersect({inputitemlist.Item_name},itemname);
 
 d = dirstrip(dir(parentdir));
