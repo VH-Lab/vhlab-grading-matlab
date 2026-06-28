@@ -21,10 +21,27 @@ function b = vhgradeassignment(parentdir, assignmentname, inputitemlist, itemnam
 %                                   |  (e.g., {'coding','loops','stats'} 
 % Comment_1_default                 | Default first comment string
 % Comment_2_default                 | Default second comment string
-% Parameters                        | A structure array of 2 types:
-%                                   |    can have fields: type='vartest', varname, value, tolerance to test variable names
-%                                   |    can have field: type='manual', (opens GUI window for completion)
-%                                   |    can have field: type='response_name', response_name (opens GUI window for completion)
+% Parameters                        | A structure array; Parameters(1).type selects the test:
+%                                   |    type='vartest', varname, value, tolerance to test a named variable
+%                                   |    type='anyvartest', value, tolerance to test if ANY variable matches
+%                                   |    type='manual', (opens GUI window for completion)
+%                                   |    type='response_name', response_name (opens GUI window for completion)
+%                                   |    type='rubric' (Gradescope-style rubric for free-response items;
+%                                   |       opens GUI window). A rubric item additionally uses these fields:
+%                                   |          mode          : 'additive' (grader checks all entries that
+%                                   |                          apply; points sum, clamped to [0,Points_possible])
+%                                   |                          or 'single' (grader picks one level = the score)
+%                                   |          base_points   : starting score for 'additive' mode (e.g. set to
+%                                   |                          Points_possible for negative/deduction grading)
+%                                   |          response_name : (optional) regexp to pull the student's text from
+%                                   |                          response.md and show it to the grader
+%                                   |          entries       : a struct array (wrap in a cell when building with
+%                                   |                          struct(), i.e. 'entries',{entries}) with fields:
+%                                   |                             description : label shown to the grader
+%                                   |                             points      : point delta (additive) or score (single)
+%                                   |                             comment     : feedback added when the entry is chosen
+%                                   |       Entries a grader adds while grading are saved under a 'RUBRICS' folder
+%                                   |       in the parent directory and reused for subsequent students.
 %
 % RESULTS of the grading will be saved in each subfolder of PARENTFOLDER.
 % The results will be a structure array with the following fields:

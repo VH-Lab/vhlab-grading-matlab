@@ -12,13 +12,21 @@ grade = [];
 dirname = [];
 inputgrade = [];
 response_string = '';
+rubric = [];
 
  % user-specified variables
 windowlabel = 'Grading';
 
-varlist = {'dirname','grade','inputgrade', 'response_string', 'windowheight','windowwidth','windowrowheight','windowlabel'};
+varlist = {'dirname','grade','inputgrade', 'response_string', 'rubric', 'windowheight','windowwidth','windowrowheight','windowlabel'};
 
 assign(varargin{:});
+
+ % make room for the rubric column if a rubric was provided
+if ~isempty(rubric),
+	if isfield(rubric,'entries') & ~isempty(rubric.entries),
+		windowwidth = 1020;
+	end;
+end;
 
 if isempty(fig),
         z = findobj(allchild(0),'flat','tag','vhintan_spikesorting');
@@ -101,6 +109,99 @@ switch command,
 		uicontrol(button, 'position',[400+10 top-row*16 100 30],'string','Cancel','tag','CancelBt');
 		uicontrol(button, 'position',[500+20 top-row*16 100 30],'string','Full Credit','tag','FullCreditBt');
 		uicontrol(button, 'position',[300-10-100 top-row*16 100 30],'string','Missing','tag','MissingBt');
+
+		 % rubric column (only drawn if a rubric was provided)
+		if isfield(ud,'rubric') & ~isempty(ud.rubric),
+			if isfield(ud.rubric,'entries') & ~isempty(ud.rubric.entries),
+				rx = 660; rw = 340;
+				if strcmpi(ud.rubric.mode,'single'),
+					rubrichdr = 'Rubric (select ONE level):';
+					maxval = 1;
+				else,
+					rubrichdr = 'Rubric (select all that apply):';
+					maxval = numel(ud.rubric.entries)+1;
+				end;
+				uicontrol(txt,'position',[rx top-row*1 rw 30],'string',rubrichdr,...
+					'horizontalalignment','left','fontweight','bold','tag','rubricTxt');
+				uicontrol(list,'position',[rx top-row*12 rw row*11],...
+					'string',vhgraderubriclabels(ud.rubric.entries),...
+					'Max',maxval,'Min',0,'value',[],'tag','rubricList');
+				uicontrol(button,'position',[rx top-row*13 170 30],...
+					'string','+ Add rubric item','tag','AddRubricBt');
+
+				 % initialize the points field from the rubric base
+				initpts = 0;
+				if strcmpi(ud.rubric.mode,'additive'),
+					initpts = ud.rubric.base_points;
+				end;
+				if initpts<0, initpts = 0; end;
+				if initpts>ud.grade.Points_possible, initpts = ud.grade.Points_possible; end;
+				set(findobj(fig,'tag','pointsEarnedEdit'),'string',num2str(initpts));
+			end;
+		end;
+
+	case 'rubricList',
+		sel = get(findobj(fig,'tag','rubricList'),'value');
+		entries = ud.rubric.entries;
+		if strcmpi(ud.rubric.mode,'single'),
+			pts = 0;
+			cmt = '';
+			if ~isempty(sel),
+				pts = entries(sel(1)).points;
+				cmt = entries(sel(1)).comment;
+			end;
+		else, % additive
+			pts = ud.rubric.base_points;
+			cmts = {};
+			for ii=1:numel(sel),
+				pts = pts + entries(sel(ii)).points;
+				if ~isempty(entries(sel(ii)).comment),
+					cmts{end+1} = entries(sel(ii)).comment;
+				end;
+			end;
+			cmt = strjoin(cmts,' ');
+		end;
+		if pts<0, pts = 0; end;
+		if pts>ud.grade.Points_possible, pts = ud.grade.Points_possible; end;
+		set(findobj(fig,'tag','pointsEarnedEdit'),'string',num2str(pts));
+		if ~isempty(cmt),
+			set(findobj(fig,'tag','comment1Edit'),'string',cmt);
+		end;
+
+	case 'AddRubricBt',
+		answ = inputdlg({'Description (shown to grader):', ...
+			'Points (delta if additive; score if single-select):', ...
+			'Comment (added to student feedback):'}, ...
+			'Add rubric item', [1 60; 1 30; 4 60]);
+		if isempty(answ),
+			return;
+		end;
+		p = str2num(answ{2});
+		if isempty(p),
+			errordlg('Points must be a number.');
+			return;
+		end;
+		cmt3 = answ{3};
+		if size(cmt3,1)>1,
+			cmt3 = strtrim(strjoin(cellstr(cmt3),' '));
+		end;
+		newentry = struct('description',answ{1},'points',p,'comment',cmt3);
+		if isempty(ud.rubric.entries),
+			ud.rubric.entries = newentry;
+		else,
+			ud.rubric.entries(end+1) = newentry;
+		end;
+		set(fig,'userdata',ud);
+		try,
+			vhgraderubricsave(ud.rubric.file, ud.rubric.entries);
+		catch,
+			warning(['Could not persist rubric: ' lasterr]);
+		end;
+		maxval = 1;
+		if strcmpi(ud.rubric.mode,'additive'),
+			maxval = numel(ud.rubric.entries)+1;
+		end;
+		set(findobj(fig,'tag','rubricList'),'string',vhgraderubriclabels(ud.rubric.entries),'Max',maxval);
 
 	case 'OKBt',
 		try,

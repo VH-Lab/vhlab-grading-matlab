@@ -71,23 +71,28 @@ if ~isempty(inputitem.Code),
 	end;
 end;
 
- % Step 2: if 'response_name', load it
+ % Step 2: if 'response_name' (or a 'rubric' that names a response), load it
+
+response_string = '';
+this_response_name = '';
 
 if strcmpi(inputitem.Parameters(1).type,'response_name'),
-
- % load the response string
-	if ~isempty(inputitem.Parameters(1).response_name),
-		try,
-			response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
-				inputitem.Parameters(1).response_name);
-		catch,
-			grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
-			save(filename,'grade','-mat');
-			return;
-		end;
+	this_response_name = inputitem.Parameters(1).response_name;
+elseif strcmpi(inputitem.Parameters(1).type,'rubric'),
+	if isfield(inputitem.Parameters(1),'response_name'),
+		this_response_name = inputitem.Parameters(1).response_name;
 	end;
-else,
-	response_string = '';
+end;
+
+if ~isempty(this_response_name),
+	try,
+		response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
+			this_response_name);
+	catch,
+		grade.Comment_1 = ['Response ' this_response_name ' not found in response.md'];
+		save(filename,'grade','-mat');
+		return;
+	end;
 end;
 
  % Step 3: if compare variable, do it
@@ -187,9 +192,35 @@ if strcmpi(inputitem.Parameters(1).type, 'anyvartest'),
 	end;
 end;
 
+ % Step 4.5: if 'rubric', assemble the (possibly persisted) rubric to show the grader
+
+rubric = [];
+
+if strcmpi(inputitem.Parameters(1).type,'rubric'),
+	rubricfile = vhgraderubricfile(vhgradedirname, inputitem);
+	static_entries = [];
+	if isfield(inputitem.Parameters(1),'entries'),
+		static_entries = inputitem.Parameters(1).entries;
+	end;
+	entries = vhgraderubricload(static_entries, rubricfile);
+	mode = 'additive';
+	if isfield(inputitem.Parameters(1),'mode'),
+		if ~isempty(inputitem.Parameters(1).mode),
+			mode = inputitem.Parameters(1).mode;
+		end;
+	end;
+	base_points = 0;
+	if isfield(inputitem.Parameters(1),'base_points'),
+		if ~isempty(inputitem.Parameters(1).base_points),
+			base_points = inputitem.Parameters(1).base_points;
+		end;
+	end;
+	rubric = struct('entries',{entries},'mode',mode,'base_points',base_points,'file',rubricfile);
+end;
+
  % Step 5: ask for user input if needed
 
-if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name') | grade.CodeError,
+if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name') | strcmpi(inputitem.Parameters(1).type,'rubric') | grade.CodeError,
 	mycodewindow = [];
 	if 1|grade.CodeError,
 		text_total = {};
@@ -204,7 +235,7 @@ if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters
 	end;
 	inputitem_alt,
 	h=vhgraderesponsegui('command', 'new', 'dirname', vhgradedirname, 'grade', grade, ...
-		'response_string', response_string, 'inputgrade',inputitem_alt);
+		'response_string', response_string, 'inputgrade',inputitem_alt, 'rubric', rubric);
 	uiwait(h);
 	if ~isempty(mycodewindow),
 		delete(mycodewindow);
