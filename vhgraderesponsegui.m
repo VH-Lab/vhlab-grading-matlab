@@ -35,7 +35,15 @@ varlist = {'command','fig','dirname','grade','inputgrade','response_string','win
 assign(varargin{:});
 
 if isempty(fig)
-    fig = uifigure('Name', windowlabel, 'Position', [50 50 1000 820]);
+    figName = windowlabel;
+    try
+        k = vhgradeitemkind(inputgrade);
+        if ~isempty(grade) && isfield(grade,'Item_name')
+            figName = sprintf('%s  [%s]  %s', windowlabel, k, grade.Item_name);
+        end
+    catch
+    end
+    fig = uifigure('Name', figName, 'Position', [50 50 1000 820]);
 end
 
 switch command
@@ -68,7 +76,12 @@ gl.Padding     = [10 10 10 10];
 gl.RowSpacing  = 8;
 gl.ColumnSpacing = 10;
 
-titleLbl = uilabel(gl, 'Text', ['Item: ' grade.Item_name], ...
+titleTxt = ['Item: ' grade.Item_name];
+try
+    titleTxt = sprintf('[%s]   %s', vhgradeitemkind(inputgrade), titleTxt);
+catch
+end
+titleLbl = uilabel(gl, 'Text', titleTxt, ...
     'FontSize', 16, 'FontWeight', 'bold');
 titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [1 2];
 

@@ -36,8 +36,8 @@ end
 % ==================================================================
 function buildUI(fig)
 
-gl = uigridlayout(fig, [4 1]);
-gl.RowHeight   = {40, 26, 'fit', '1x'};
+gl = uigridlayout(fig, [5 1]);
+gl.RowHeight   = {40, 40, 26, 'fit', '1x'};
 gl.ColumnWidth = {'1x'};
 gl.Padding     = [10 10 10 10];
 gl.RowSpacing  = 6;
@@ -68,9 +68,26 @@ uibutton(tb, 'Text', 'Change directory…', ...
     'Tooltip', 'Point at a different parent directory of student folders.', ...
     'ButtonPushedFcn', @(~,~) onChangeDir(fig));
 
+% ---- toolbar (row 2): summaries + exports ----
+tb2 = uigridlayout(gl, [1 4]);
+tb2.ColumnWidth = {260, 260, 260, '1x'};
+tb2.Padding = [0 0 0 0]; tb2.ColumnSpacing = 8;
+
+uibutton(tb2, 'Text', 'Refresh all summaries', ...
+    'Tooltip', 'Rewrite the GRADING/summary.txt file inside every student folder from their current graded .mat files.', ...
+    'ButtonPushedFcn', @(~,~) onRefreshSummaries(fig));
+
+uibutton(tb2, 'Text', 'Open selected student''s summary', ...
+    'Tooltip', 'Open the GRADING/summary.txt for whichever student is highlighted in the table.', ...
+    'ButtonPushedFcn', @(~,~) onOpenStudentSummary(fig));
+
+uibutton(tb2, 'Text', 'Export cohort CSV…', ...
+    'Tooltip', 'Save a CSV with one row per student and one column per item, plus totals.', ...
+    'ButtonPushedFcn', @(~,~) onExportCsv(fig));
+
 % (selection label lives in the hint row below the toolbar)
 
-% ---- hint row (row 2): parent dir + current selection ----
+% ---- hint row (row 3): parent dir + current selection ----
 hintGrid = uigridlayout(gl, [1 2]);
 hintGrid.ColumnWidth = {'1x', '1x'};
 hintGrid.Padding = [0 0 0 0]; hintGrid.ColumnSpacing = 12;
@@ -165,7 +182,7 @@ for i = 1:n
 end
 
 itemHeaders = arrayfun(@(k) sprintf('[%s] %s', ...
-    itemKind(s.items(k)), shortName(s.items(k).Item_name, 24)), ...
+    vhgradeitemkind(s.items(k)), shortName(s.items(k).Item_name, 24)), ...
     1:m, 'UniformOutput', false);
 h.tbl.ColumnName = [{'Student'}, itemHeaders, {'Total'}];
 h.tbl.RowName    = {};
@@ -225,7 +242,7 @@ lines{2} = 'Kinds: [resp]=written response · [code]=runs student code · [code+
 for j = 1:m
     done = sum(~isnan(s.matrix(:, j)));
     lines{j+2} = sprintf('  [%-9s] %-40s  %d / %d graded (%.0f%%)', ...
-        itemKind(s.items(j)), shortName(s.items(j).Item_name, 40), ...
+        vhgradeitemkind(s.items(j)), shortName(s.items(j).Item_name, 40), ...
         done, n, 100*done/max(n,1));
 end
 h.summaryLbl.Text = strjoin(lines, char(10));
@@ -339,6 +356,131 @@ fig.UserData = s;
 refreshScan(fig);
 end
 
+function onRefreshSummaries(fig)
+s = fig.UserData;
+n = numel(s.students);
+if n == 0
+    uialert(fig, 'No student folders found.', 'Nothing to summarize');
+    return;
+end
+dlg = uiprogressdlg(fig, 'Title','Refreshing summaries', ...
+    'Message', sprintf('Writing summary.txt for %d students…', n), ...
+    'Indeterminate','off');
+for k = 1:n
+    dlg.Value = k / n;
+    dlg.Message = sprintf('Writing summary for %s (%d/%d)…', s.students{k}, k, n);
+    studentDir = fullfile(s.parentDir, s.students{k});
+    try
+        vhgradesummary(studentDir, 'PS overview', s.items);
+    catch ME
+        warning('vhgradeoverview:summaryFailed', ...
+            'summary failed for %s: %s', s.students{k}, ME.message);
+    end
+end
+close(dlg);
+uialert(fig, sprintf('Wrote / refreshed summary.txt for %d students.', n), ...
+    'Summaries refreshed', 'Icon','success');
+end
+
+function onOpenStudentSummary(fig)
+s = fig.UserData;
+[row, ~, msg] = liveSelection(s);
+if isempty(row)
+    % Selection might be a Student-column click — still valid to pick a row.
+    try
+        sel = s.h.tbl.Selection;
+        if ~isempty(sel), row = sel(1,1); end
+    catch
+    end
+end
+if isempty(row) || row < 1 || row > numel(s.students)
+    uialert(fig, ...
+        ['Click any cell in a student row first (' msg ')'], ...
+        'Pick a student');
+    return;
+end
+studentDir = fullfile(s.parentDir, s.students{row});
+sumPath = fullfile(studentDir, 'GRADING', 'summary.txt');
+if ~isfile(sumPath)
+    % Try to generate it on the fly.
+    try
+        vhgradesummary(studentDir, 'PS overview', s.items);
+    catch
+    end
+end
+if ~isfile(sumPath)
+    uialert(fig, sprintf('No summary.txt found for %s.', s.students{row}), ...
+        'Nothing to open');
+    return;
+end
+try
+    open(sumPath);       % pick the OS's default text app; falls back to MATLAB
+catch
+    edit(sumPath);       % open in MATLAB editor as a fallback
+end
+end
+
+function onExportCsv(fig)
+s = fig.UserData;
+n = numel(s.students);
+m = numel(s.items);
+if n == 0
+    uialert(fig, 'No student folders found.', 'Nothing to export');
+    return;
+end
+[fn, fp] = uiputfile({'*.csv','Comma-separated values'}, 'Save cohort CSV', ...
+    fullfile(s.parentDir, 'cohort_grades.csv'));
+if isequal(fn, 0), return; end
+csvPath = fullfile(fp, fn);
+
+fid = fopen(csvPath, 'w');
+if fid == -1
+    uialert(fig, ['Cannot write ' csvPath], 'Export failed');
+    return;
+end
+c = onCleanup(@() fclose(fid));
+
+% header
+hdr = {'student'};
+for j = 1:m, hdr{end+1} = s.items(j).Item_name; end %#ok<AGROW>
+hdr{end+1} = 'total_earned';
+hdr{end+1} = 'total_possible';
+hdr{end+1} = 'percent';
+fprintf(fid, '%s\n', strjoin(cellfun(@csvEscape, hdr, 'UniformOutput',false), ','));
+
+totalPossible = sum(s.possible);
+for i = 1:n
+    row = cell(1, m + 4);
+    row{1} = csvEscape(s.students{i});
+    totalEarned = 0;
+    for j = 1:m
+        v = s.matrix(i, j);
+        if isnan(v)
+            row{j+1} = '';
+        else
+            row{j+1} = num2str(v);
+            totalEarned = totalEarned + v;
+        end
+    end
+    row{m+2} = num2str(totalEarned);
+    row{m+3} = num2str(totalPossible);
+    if totalPossible > 0
+        row{m+4} = sprintf('%.1f', 100*totalEarned/totalPossible);
+    else
+        row{m+4} = '';
+    end
+    fprintf(fid, '%s\n', strjoin(row, ','));
+end
+uialert(fig, ['Wrote ' csvPath], 'CSV exported', 'Icon','success');
+end
+
+function s = csvEscape(x)
+s = char(x);
+if any(s == ',' | s == '"' | s == char(10) | s == char(13))
+    s = ['"' strrep(s,'"','""') '"'];
+end
+end
+
 
 % ==================================================================
 % ------- helpers -------
@@ -349,27 +491,7 @@ if numel(name) > n
 end
 end
 
-function k = itemKind(item)
-% Classify what a grader will encounter for this item.
-%   resp        - written response only (response_name autograder, no Code)
-%   code        - runs student Code and/or checks variables (vartest/anyvartest)
-%   code+resp   - runs Code AND asks the grader to read a response
-%   manual      - grader must judge with no autograder or code
-hasCode = false;
-if isfield(item,'Code'), hasCode = ~isempty(strtrim(char(item.Code))); end
-autoType = 'manual';
-if isfield(item,'Parameters') && ~isempty(item.Parameters)
-    autoType = lower(char(item.Parameters(1).type));
-end
-switch autoType
-    case 'response_name'
-        if hasCode, k = 'code+resp'; else, k = 'resp'; end
-    case {'vartest','anyvartest'}
-        k = 'code';
-    otherwise
-        if hasCode, k = 'code'; else, k = 'manual'; end
-end
-end
+% (itemKind moved to shared vhgradeitemkind.m)
 
 function g = readGradeFile(studentDir, item)
 g = [];
