@@ -1,172 +1,476 @@
 function fig = vhgraderesponsegui(varargin)
-% VHGRADERESPONSEGUI - 
+% VHGRADERESPONSEGUI - grader window with additive rubric + comment bank
+%
+% FIG = VHGRADERESPONSEGUI('command','new', 'dirname',D, 'grade',G, ...
+%           'response_string',R, 'inputgrade',I)
+%
+% Modernised UI (uifigure) with:
+%   - The item name and description at the top.
+%   - The student response (from response.md) below, if any.
+%   - A rubric panel: one checkbox per criterion, labelled with its points.
+%     Checking a criterion adds its points to the running total.
+%   - A comment-bank panel: item-specific comments first, then the
+%     assignment-shared comments. Each is a checkbox; selected labels are
+%     assembled into Comment_1, and their points_delta values adjust the
+%     running total.
+%   - Two free-text comment boxes for anything the bank does not cover
+%     (Comment_1 addendum + Comment_2).
+%   - Points earned box (auto-computed, still editable by hand) next to
+%     Points possible; buttons: Save, Cancel, Full Credit, Missing.
+%
+% Callers may omit the Rubric / Comment_bank fields on INPUTGRADE; the
+% corresponding panels then render empty and the tool behaves like the
+% classic two-text-box grader.
 
-command = 'new';    % internal variable, the command
-fig = '';                 % the figure
-success = 0;
-windowheight = 600;
-windowwidth = 650;
-windowrowheight = 35;
+command = 'new';
+fig = '';
 
 grade = [];
 dirname = [];
 inputgrade = [];
 response_string = '';
-
- % user-specified variables
 windowlabel = 'Grading';
 
-varlist = {'dirname','grade','inputgrade', 'response_string', 'windowheight','windowwidth','windowrowheight','windowlabel'};
-
+varlist = {'command','fig','dirname','grade','inputgrade','response_string','windowlabel'};
 assign(varargin{:});
 
-if isempty(fig),
-        z = findobj(allchild(0),'flat','tag','vhintan_spikesorting');
-        if isempty(z),
-                fig = figure('name',windowlabel, 'NumberTitle','off'); % we need to make a new figure
-        else,
-		fig = z;
-		figure(fig);
-		return; % just pop up the existing window
-        end;
-end;
+if isempty(fig)
+    figName = windowlabel;
+    try
+        k = vhgradeitemkind(inputgrade);
+        if ~isempty(grade) && isfield(grade,'Item_name')
+            figName = sprintf('%s  [%s]  %s', windowlabel, k, grade.Item_name);
+        end
+    catch
+    end
+    fig = uifigure('Name', figName, 'Position', [50 50 1000 820]);
+end
+
+switch command
+    case 'new'
+        buildUI(fig, dirname, grade, inputgrade, response_string);
+    otherwise
+        % Old-style tag-dispatch callbacks aren't needed with uifigure;
+        % handlers below are wired directly.
+end
 
 
- % initialize userdata field
-if strcmp(command,'new'),
-	for i=1:length(varlist),
-		eval(['ud.' varlist{i} '=' varlist{i} ';']);
-	end;
-else,
-	ud = get(fig,'userdata');
-end;
+% ==================================================================
+function buildUI(fig, dirname, grade, inputgrade, responseString)
 
-%command,
+if ~isstruct(inputgrade), inputgrade = struct(); end
 
-switch command,
-	case 'new',
-		set(fig,'userdata',ud);
-		vhgraderesponsegui('command','NewWindow','fig',fig);
-	case 'NewWindow',
-		% control object defaults
+rubric      = getfielddef(inputgrade, 'Rubric', []);
+commentBank = getfielddef(inputgrade, 'Comment_bank', []);
+sharedBank  = getfielddef(inputgrade, 'Shared_comment_bank', []);
+c1def       = getfielddef(inputgrade, 'Comment_1_default', '');
+c2def       = getfielddef(inputgrade, 'Comment_2_default', '');
 
-		% this callback was a nasty puzzle in quotations:
-		callbackstr = [  'eval([get(gcbf,''Tag'') ''(''''command'''','''''' get(gcbo,''Tag'') '''''' ,''''fig'''',gcbf);'']);'];
+pointsPossible = getfielddef(grade, 'Points_possible', 0);
 
-		button.Units = 'pixels';
-		button.BackgroundColor = get(fig,'color');
-		button.HorizontalAlignment = 'center';
-		button.Callback = callbackstr;
-		txt.Units = 'pixels';
-		txt.BackgroundColor = get(fig,'color');
-		txt.fontsize = 12;
-		txt.fontweight = 'normal';
-		txt.HorizontalAlignment = 'left';
-		txt.Style='text';
-		edit = txt;
-		edit.BackgroundColor = [ 1 1 1];
-		edit.Style = 'Edit';
-		popup = txt;
-		popup.style = 'popupmenu';
-		popup.Callback = callbackstr;
-		list = txt;
-		list.style = 'list';
-		list.Callback = callbackstr;
-		cb = txt;
-		cb.Style = 'Checkbox';
-		cb.Callback = callbackstr;
-		cb.fontsize = 12;
+% -------- top: title + description --------
+gl = uigridlayout(fig, [5 2]);
+gl.RowHeight   = {36, 80, '1x', 180, 56};
+gl.ColumnWidth = {'1.4x', '1x'};
+gl.Padding     = [10 10 10 10];
+gl.RowSpacing  = 8;
+gl.ColumnSpacing = 10;
 
-		right = ud.windowwidth;
-		row = ud.windowrowheight;
-		top = ud.windowheight - row;
+titleTxt = ['Item: ' grade.Item_name];
+try
+    titleTxt = sprintf('[%s]   %s', vhgradeitemkind(inputgrade), titleTxt);
+catch
+end
+titleLbl = uilabel(gl, 'Text', titleTxt, ...
+    'FontSize', 16, 'FontWeight', 'bold');
+titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [1 2];
 
-		itemstring = ['Item: ' ud.grade.Item_name ];
+descLbl = uitextarea(gl, 'Value', splitLines(grade.Description), 'Editable','off');
+descLbl.Layout.Row = 2; descLbl.Layout.Column = [1 2];
 
-		set(fig,'position',[50 50 ud.windowwidth ud.windowheight ],'tag','vhgraderesponsegui');
-                uicontrol(txt,'position',[5 top-row*1 600 30],'string',itemstring,'horizontalalignment','left','fontweight','bold','tag','itemTxt');
-		uicontrol(txt,'position',[5 top-row*2 600 row*3],'string',ud.grade.Description,'horizontalalignment','left','tag','descriptionTxt');
-		uicontrol(list,'position',[5 top-row*5 600 row*4],'string',ud.response_string,'horizontalalignment','left','tag','responseList');
-		uicontrol(edit,'position',[5 top-row*9 600 row*3],'string',ud.inputgrade.Comment_1_default,...
-			'horizontalalignment','left','tag','comment1Edit');
-		uicontrol(edit,'position',[5 top-row*12 600 row*3],'string',ud.inputgrade.Comment_2_default, ...
-			'horizontalalignment','left','tag','comment2Edit');
+% -------- middle-left: response --------
+leftPanel = uipanel(gl, 'Title', 'Response');
+leftPanel.Layout.Row = 3; leftPanel.Layout.Column = 1;
+leftGrid = uigridlayout(leftPanel, [1 1]); leftGrid.Padding = [6 6 6 6];
+respTA = uitextarea(leftGrid, 'Value', splitLines(responseString), 'Editable','off');
 
-		uicontrol(txt,'position',[5 top-row*15 100 30], 'string', 'Points:','horizontalalignment','left');
-		uicontrol(edit,'position',[105 top-row*15 40 30], 'string', '0', 'tag', 'pointsEarnedEdit');
-		uicontrol(txt,'position',[105+40+5 top-row*15 30 30], 'string', 'of');
-		uicontrol(txt,'position',[105+40+5+30+5 top-row*15 40 30], 'string', num2str(ud.grade.Points_possible), 'tag', 'pointsPossibleTxt');
+% -------- middle-right: rubric + comment bank (tabs) --------
+rightPanel = uipanel(gl, 'Title', 'Rubric & Comments');
+rightPanel.Layout.Row = 3; rightPanel.Layout.Column = 2;
+rGrid = uigridlayout(rightPanel, [2 1]); rGrid.Padding = [6 6 6 6];
+rGrid.RowHeight = {'1x', '1x'};
 
-		uicontrol(button, 'position',[300 top-row*16 100 30],'string','OK','tag','OKBt');
-		uicontrol(button, 'position',[400+10 top-row*16 100 30],'string','Cancel','tag','CancelBt');
-		uicontrol(button, 'position',[500+20 top-row*16 100 30],'string','Full Credit','tag','FullCreditBt');
-		uicontrol(button, 'position',[300-10-100 top-row*16 100 30],'string','Missing','tag','MissingBt');
+% rubric panel — scrollable so a long rubric doesn't clip
+rubricPanel = uipanel(rGrid, 'Title', 'Rubric (checkbox = award points)', ...
+    'Scrollable','on');
+nRubricRows = max(1, numel(rubric)+1);
+rubricInner = uigridlayout(rubricPanel, [nRubricRows 1]);
+rubricInner.Padding = [4 4 4 4];
+rubricInner.RowSpacing = 2;
+rubricInner.RowHeight = repmat({'fit'}, 1, nRubricRows);
+rubricInner.Scrollable = 'on';
+rubricChecks = gobjects(1, numel(rubric));
+for i = 1:numel(rubric)
+    label = sprintf('[%g pts] %s', rubric(i).points, rubric(i).name);
+    rubricChecks(i) = uicheckbox(rubricInner, 'Text', label, 'Value', false);
+end
+if isempty(rubric)
+    uilabel(rubricInner, 'Text', '(no rubric criteria)', 'FontAngle','italic');
+end
 
-	case 'OKBt',
-		try,
-			ud.grade.Comment_1 = get(findobj(fig,'tag','comment1Edit'),'string');
-			ud.grade.Comment_2 = get(findobj(fig,'tag','comment2Edit'),'string');
-			numstring = get(findobj(fig,'tag','pointsEarnedEdit'),'string');
-			ud.grade.Points_earned = str2num(numstring);
-			if ud.grade.Points_earned<0,
-				errordlg(['Points no good.']);
-			end;
-		catch,
-			errordlg(['Error: ' lasterr]);
-			return; % make user do more
-		end;
+% comment bank panel — scrollable so a long bank doesn't clip
+commentPanel = uipanel(rGrid, ...
+    'Title', 'Comment bank (checked comments are added)', ...
+    'Scrollable','on');
+nBankRows = max(1, numel(commentBank) + numel(sharedBank) + 2);
+commentInner = uigridlayout(commentPanel, [nBankRows 1]);
+commentInner.Padding = [4 4 4 4];
+commentInner.RowSpacing = 2;
+commentInner.RowHeight = repmat({'fit'}, 1, nBankRows);
+commentInner.Scrollable = 'on';
+allBank = struct('label',{},'text',{},'points_delta',{},'source',{});
+for i = 1:numel(commentBank)
+    allBank(end+1) = withSource(commentBank(i), 'item'); %#ok<AGROW>
+end
+if ~isempty(commentBank) && ~isempty(sharedBank)
+    sep = uilabel(commentInner, 'Text', '— shared —', 'FontAngle','italic'); %#ok<NASGU>
+end
+for i = 1:numel(sharedBank)
+    allBank(end+1) = withSource(sharedBank(i), 'shared'); %#ok<AGROW>
+end
+commentChecks = gobjects(1, numel(allBank));
+for i = 1:numel(allBank)
+    if allBank(i).points_delta == 0
+        deltaTxt = '';
+    else
+        deltaTxt = sprintf(' [%+g]', allBank(i).points_delta);
+    end
+    label = sprintf('%s%s', allBank(i).label, deltaTxt);
+    commentChecks(i) = uicheckbox(commentInner, 'Text', label, 'Value', false);
+end
+if isempty(allBank)
+    uilabel(commentInner, 'Text', '(no comment bank)', 'FontAngle','italic');
+end
 
-		% if we are here, we are ready to save
-		grade_directory = [ud.dirname filesep 'GRADING'];
-		filename = [grade_directory filesep ud.grade.Item_filename];
-		grade = ud.grade;
-		save(filename,'grade','-mat');
+% -------- row 4: free-text comments + points panel --------
+bottomPanel = uipanel(gl);
+bottomPanel.Layout.Row = 4; bottomPanel.Layout.Column = [1 2];
+bGrid = uigridlayout(bottomPanel, [1 2]);
+bGrid.ColumnWidth = {'2x','1x'};
+bGrid.Padding = [6 6 6 6];
+bGrid.ColumnSpacing = 8;
 
-		close(fig);
+% two free-text comment areas + a canned-comment insert row
+extraPanel = uipanel(bGrid, 'Title', 'Additional comments (free text)');
+extraGrid = uigridlayout(extraPanel, [3 1]);
+extraGrid.RowHeight = {'fit','1x','1x'};
+extraGrid.Padding = [4 4 4 4];
+extraGrid.RowSpacing = 4;
 
-	case 'MissingBt',
-		try,
-			ud.grade.Comment_1 = 'Missing/incomplete.'
-			ud.grade.Comment_2 = get(findobj(fig,'tag','comment2Edit'),'string');
-			numstring = get(findobj(fig,'tag','pointsEarnedEdit'),'string');
-			ud.grade.Points_earned = str2num(numstring);
-			if ud.grade.Points_earned<0,
-				errordlg(['Points no good.']);
-			end;
-		catch,
-			errordlg(['Error: ' lasterr]);
-			return; % make user do more
-		end;
+insertRow = uigridlayout(extraGrid, [1 3]);
+insertRow.ColumnWidth = {130, '1x', 160};
+insertRow.Padding = [0 0 0 0]; insertRow.ColumnSpacing = 4;
+uilabel(insertRow, 'Text', 'Insert canned comment:');
+if isempty(allBank)
+    bankItems = {'(no canned comments)'};
+else
+    bankItems = arrayfun(@(k) sprintf('%s%s', allBank(k).label, ...
+        ternaryStr(allBank(k).points_delta ~= 0, ...
+            sprintf(' [%+g]', allBank(k).points_delta), '')), ...
+        1:numel(allBank), 'UniformOutput', false);
+end
+insertDD = uidropdown(insertRow, 'Items', bankItems);
+insertBt = uibutton(insertRow, 'Text', 'Insert → Comment 2', ...
+    'Tooltip', 'Copy the selected canned comment''s full text into the Extra comment 2 box below so you can edit it before saving.');
 
-		% if we are here, we are ready to save
-		grade_directory = [ud.dirname filesep 'GRADING'];
-		filename = [grade_directory filesep ud.grade.Item_filename];
-		grade = ud.grade;
-		save(filename,'grade','-mat');
+c1TA = uitextarea(extraGrid, 'Value', splitLines(c1def), ...
+    'Placeholder','Extra comment 1');
+c2TA = uitextarea(extraGrid, 'Value', splitLines(c2def), ...
+    'Placeholder','Extra comment 2 (good place for a customised message)');
 
-		close(fig);
+insertBt.ButtonPushedFcn = @(~,~) insertCanned(insertDD, allBank, c2TA);
 
-	case 'FullCreditBt',
-		try,
-			ud.grade.Comment_1 = get(findobj(fig,'tag','comment1Edit'),'string');
-			ud.grade.Comment_2 = get(findobj(fig,'tag','comment2Edit'),'string');
-			ud.grade.Points_earned = ud.grade.Points_possible;
-		catch,
-			errordlg(['Error: ' lasterr]);
-			return; % make user do more
-		end;
+% points display
+ptsPanel = uipanel(bGrid, 'Title', 'Points');
+ptsGrid = uigridlayout(ptsPanel, [2 3]);
+ptsGrid.RowHeight   = {'fit','fit'};
+ptsGrid.ColumnWidth = {'fit',80,'fit'};
+ptsGrid.Padding = [8 8 8 8];
+ptsGrid.RowSpacing = 6; ptsGrid.ColumnSpacing = 6;
+uilabel(ptsGrid, 'Text', 'Earned:');
+earnedEdit = uieditfield(ptsGrid, 'numeric', 'Value', 0, ...
+    'Limits',[-inf inf], 'AllowEmpty',false);
+uilabel(ptsGrid, 'Text', sprintf('of %g', pointsPossible));
+uilabel(ptsGrid, 'Text', 'Auto:');
+autoLbl  = uilabel(ptsGrid, 'Text', '0', 'FontWeight','bold');
+useAutoBt = uibutton(ptsGrid, 'Text', 'Use auto', ...
+    'ButtonPushedFcn', @(~,~) set(earnedEdit,'Value', str2doubleSafe(autoLbl.Text)));
 
-		% if we are here, we are ready to save
-		grade_directory = [ud.dirname filesep 'GRADING'];
-		filename = [grade_directory filesep ud.grade.Item_filename];
-		grade = ud.grade;
-		save(filename,'grade','-mat');
+% -------- row 5: action buttons in a horizontal strip --------
+btnPanel = uipanel(gl, 'Title', 'Actions');
+btnPanel.Layout.Row = 5; btnPanel.Layout.Column = [1 2];
+btnGrid = uigridlayout(btnPanel, [1 5]);
+btnGrid.Padding = [8 6 8 6];
+btnGrid.ColumnSpacing = 10;
+if ismac
+    modLabel = @(k) ['⌘' k];
+else
+    modLabel = @(k) ['Ctrl+' k];
+end
+saveBt = uibutton(btnGrid, 'Text', ['Save  (' modLabel('S') ')'], ...
+    'BackgroundColor', [0.85 0.95 0.85], 'FontWeight','bold', ...
+    'Tooltip','Save this grade and go to the next student.');
+fullBt = uibutton(btnGrid, 'Text', ['Full credit  (' modLabel('F') ')'], ...
+    'Tooltip','Award full points, save, and go to the next student.');
+missBt = uibutton(btnGrid, 'Text', ['Missing / 0  (' modLabel('M') ')'], ...
+    'Tooltip','Score 0 with a "Missing / incomplete" comment, save, and go to the next student.');
+skipBt = uibutton(btnGrid, 'Text', ['Skip this student  (' modLabel('K') ')'], ...
+    'Tooltip','Close without saving anything for this student. Batch grading continues to the next student.');
+cancBt = uibutton(btnGrid, 'Text', 'Cancel (stop batch)  (Esc)', ...
+    'BackgroundColor', [1 0.90 0.85], ...
+    'Tooltip','Close without saving AND stop the batch grading loop.');
 
-		close(fig);
+% wire callbacks — capture handles in closure
+recalc = @() recalcAuto(rubricChecks, commentChecks, allBank, autoLbl, earnedEdit);
+for i = 1:numel(rubricChecks)
+    rubricChecks(i).ValueChangedFcn = @(~,~) recalc();
+end
+for i = 1:numel(commentChecks)
+    commentChecks(i).ValueChangedFcn = @(~,~) recalc();
+end
+recalc();
 
-	case 'CancelBt',
-		close(fig); % do not save anything
-		return;
-	otherwise,
-		disp(['do not know how to process command ' command '.']);
-end;
+saveBt.ButtonPushedFcn = @(~,~) onSave(fig, dirname, grade, ...
+    rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
+fullBt.ButtonPushedFcn = @(~,~) onFullCredit(fig, dirname, grade, ...
+    rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
+missBt.ButtonPushedFcn = @(~,~) onMissing(fig, dirname, grade, ...
+    rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
+skipBt.ButtonPushedFcn = @(~,~) delete(fig);   % skip this student only
+cancBt.ButtonPushedFcn = @(~,~) onCancelBatch(fig);
+
+% Treat window-close (X) the same as Cancel — safer: stops the batch,
+% so an accidental close cannot silently move on to the next student.
+fig.CloseRequestFcn = @(~,~) onCancelBatch(fig);
+
+% Keyboard shortcuts: ⌘S / Ctrl-S = Save, ⌘F / Ctrl-F = Full credit,
+% ⌘M / Ctrl-M = Missing, ⌘K / Ctrl-K = Skip, Esc = Cancel (stop batch).
+fig.WindowKeyPressFcn = @(~,evt) onShortcut(evt, saveBt, fullBt, missBt, skipBt, cancBt);
+
+
+% ==================================================================
+function recalcAuto(rubricChecks, commentChecks, allBank, autoLbl, earnedEdit)
+total = 0;
+for i = 1:numel(rubricChecks)
+    if rubricChecks(i).Value
+        v = sscanf(rubricChecks(i).Text, '[%g pts]', 1);
+        if ~isempty(v), total = total + v; end
+    end
+end
+for i = 1:numel(commentChecks)
+    if commentChecks(i).Value
+        total = total + allBank(i).points_delta;
+    end
+end
+autoLbl.Text = num2str(total);
+earnedEdit.Value = total;
+
+% ==================================================================
+function onSave(fig, dirname, grade, rubricChecks, rubric, ...
+                commentChecks, allBank, c1TA, c2TA, earnedEdit)
+try
+    [comment1, selected, awarded] = ...
+        composeComments(rubricChecks, rubric, commentChecks, allBank, c1TA);
+    comment2 = joinLines(c2TA.Value);
+    if ~hasAnyComment(awarded, selected, comment1, comment2)
+        uialert(fig, ...
+            ['Please leave at least one comment before saving. ' ...
+             'Check a rubric criterion, tick a canned comment, or ' ...
+             'type something in the free-text boxes. ' ...
+             '(If the student simply did not do this item, use the ' ...
+             '"Missing / 0" button.)'], ...
+            'Comment required', 'Icon','warning');
+        return;
+    end
+    grade.Points_earned    = earnedEdit.Value;
+    grade.Comment_1        = comment1;
+    grade.Comments_selected = selected;
+    grade.Rubric_awarded   = awarded;
+    grade.Comment_2        = comment2;
+catch ME
+    uialert(fig, ['Error: ' ME.message], 'Save failed');
+    return;
+end
+persistGrade(dirname, grade);
+delete(fig);
+
+function onFullCredit(fig, dirname, grade, rubricChecks, rubric, ...
+                      commentChecks, allBank, c1TA, c2TA, earnedEdit) %#ok<INUSD>
+[comment1, selected, awarded] = ...
+    composeComments(rubricChecks, rubric, commentChecks, allBank, c1TA);
+comment2 = joinLines(c2TA.Value);
+if ~hasAnyComment(awarded, selected, comment1, comment2)
+    uialert(fig, ...
+        ['Please leave at least one comment before awarding full credit. ' ...
+         'A rubric criterion, a canned comment, or free text is fine.'], ...
+        'Comment required', 'Icon','warning');
+    return;
+end
+grade.Points_earned    = grade.Points_possible;
+grade.Comment_1        = comment1;
+grade.Comments_selected = selected;
+grade.Rubric_awarded   = awarded;
+grade.Comment_2        = comment2;
+persistGrade(dirname, grade);
+delete(fig);
+
+function tf = hasAnyComment(awarded, selected, comment1, comment2)
+tf = any(awarded) ...
+     || ~isempty(selected) ...
+     || (iscell(comment1) && ~isempty(comment1) && ~all(cellfun(@isempty, comment1))) ...
+     || (~isempty(comment2) && ~all(comment2 == ' '));
+
+function onMissing(fig, dirname, grade, rubricChecks, rubric, ...
+                   commentChecks, allBank, c1TA, c2TA, earnedEdit) %#ok<INUSD>
+grade.Points_earned = 0;
+grade.Comment_1 = 'Missing / incomplete.';
+grade.Comments_selected = {};
+grade.Rubric_awarded = false(1, numel(rubric));
+grade.Comment_2 = joinLines(c2TA.Value);
+persistGrade(dirname, grade);
+delete(fig);
+
+
+% ==================================================================
+function [comment1, selectedLabels, awarded] = composeComments( ...
+    rubricChecks, rubric, commentChecks, allBank, c1TA)
+awarded = false(1, numel(rubric));
+for i = 1:numel(rubricChecks)
+    awarded(i) = logical(rubricChecks(i).Value);
+end
+lines = {};
+selectedLabels = {};
+for i = 1:numel(commentChecks)
+    if commentChecks(i).Value
+        selectedLabels{end+1} = allBank(i).label;   %#ok<AGROW>
+        lines{end+1}          = allBank(i).text;    %#ok<AGROW>
+    end
+end
+free = joinLines(c1TA.Value);
+if ~isempty(free)
+    lines{end+1} = free;
+end
+comment1 = lines;
+
+function onShortcut(evt, saveBt, fullBt, missBt, skipBt, cancBt)
+% Dispatch keyboard shortcuts to the same button handlers.
+%   ⌘/Ctrl-S = Save
+%   ⌘/Ctrl-F = Full credit
+%   ⌘/Ctrl-M = Missing / 0
+%   ⌘/Ctrl-K = Skip this student
+%   Esc      = Cancel (stop batch)
+if isempty(evt) || ~isprop(evt,'Key'), return; end
+key = lower(char(evt.Key));
+mods = {}; if isprop(evt,'Modifier'), mods = evt.Modifier; end
+cmdOrCtrl = any(ismember(lower(mods), {'command','control'}));
+btn = [];
+if strcmp(key,'escape')
+    btn = cancBt;
+elseif cmdOrCtrl
+    switch key
+        case 's', btn = saveBt;
+        case 'f', btn = fullBt;
+        case 'm', btn = missBt;
+        case 'k', btn = skipBt;
+    end
+end
+if ~isempty(btn) && isvalid(btn) && ~isempty(btn.ButtonPushedFcn)
+    feval(btn.ButtonPushedFcn, btn, []);
+end
+
+function onCancelBatch(fig)
+% Signal the caller (vhgradeoverview / vhgradeassignment) to stop the
+% batch after this fig closes. Also treats the OS window-close (X) as
+% a batch cancel so an accidental close cannot silently move on.
+setappdata(groot, 'vhgrade_cancelBatch', true);
+delete(fig);
+
+function insertCanned(dd, allBank, c2TA)
+% Append the selected bank comment's full text to the Comment-2 box so
+% the grader can edit it before saving.
+if isempty(allBank), return; end
+% Match by label (dropdown items are "label [±N]"); strip the [±N] tail.
+val = char(dd.Value);
+label = regexprep(val, '\s\[[-+]?[\d\.]+\]$', '');
+idx = find(strcmp({allBank.label}, label), 1);
+if isempty(idx), return; end
+txt = allBank(idx).text;
+existing = joinLines(c2TA.Value);
+if isempty(strtrim(existing))
+    combined = txt;
+else
+    combined = [existing char(10) char(10) txt];
+end
+c2TA.Value = splitLines(combined);
+
+function s = ternaryStr(cond, a, b)
+if cond, s = a; else, s = b; end
+
+function persistGrade(dirname, grade)
+grade_directory = [dirname filesep 'GRADING'];
+filename = [grade_directory filesep grade.Item_filename];
+save(filename, 'grade', '-mat');
+
+function v = getfielddef(s, f, d)
+if isstruct(s) && isfield(s, f) && ~isempty(s.(f))
+    v = s.(f);
+else
+    v = d;
+end
+
+function s = withSource(x, src)
+s.label        = char(x.label);
+s.text         = char(x.text);
+s.points_delta = double(x.points_delta);
+s.source       = src;
+
+function c = splitLines(x)
+% Normalise anything text-shaped into a Nx1 cellstr suitable for
+% assigning to a uitextarea's Value: '' | char row | char matrix |
+% cellstr | string array.
+if isempty(x)
+    c = {''}; return;
+end
+if iscell(x)
+    c = cellfun(@char, x(:), 'UniformOutput', false);
+    return;
+end
+if isstring(x)
+    c = cellstr(x(:));
+    return;
+end
+if ischar(x)
+    if size(x, 1) > 1
+        c = cellstr(x);      % each row → one cell
+        return;
+    end
+    c = regexp(x, '\r?\n', 'split');
+    c = c(:);
+    return;
+end
+c = {char(string(x))};
+
+function s = joinLines(x)
+if isempty(x)
+    s = ''; return;
+end
+if iscell(x)
+    s = strjoin(x, char(10));
+else
+    s = char(x);
+end
+s = strtrim(s);
+
+function v = str2doubleSafe(s)
+v = str2double(s);
+if isnan(v), v = 0; end

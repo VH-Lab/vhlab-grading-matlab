@@ -62,6 +62,8 @@ assignmentname = char(assignmentname);
 
 d = dirstrip(dir(parentdir));
 
+setappdata(groot, 'vhgrade_cancelBatch', false);
+
 for i=1:numel(d),
 	if d(i).isdir,
 		% get ready to grade
@@ -76,12 +78,19 @@ for i=1:numel(d),
 			inputitemlist(K1(k)),
 			[parentdir filesep d(i).name]
 			vhgradequestion([parentdir filesep d(i).name], inputitemlist(K1(k)),forceRegrade);
+			if getappdata(groot, 'vhgrade_cancelBatch'), break; end
 		end;
 
 		rmpath(genpath([parentdir filesep d(i).name]));
 
 		vhgradesummary([parentdir filesep d(i).name], assignmentname, inputitemlist);
 	end;
+	if getappdata(groot, 'vhgrade_cancelBatch')
+		disp('vhgradeassignment: batch cancelled by user.');
+		break;
+	end;
 end;
+
+setappdata(groot, 'vhgrade_cancelBatch', false);
 
 
