@@ -155,23 +155,37 @@ h.tbl.Data       = [s.students(:), data];
 cw = [{200}, repmat({'auto'}, 1, m), {150}];
 h.tbl.ColumnWidth = cw;
 
-% Style cells: red-ish for ungraded, green-ish for graded
+% Style cells: red-ish for ungraded, green/yellow/orange by fraction earned.
 removeStyle(h.tbl);
+buckets = struct('ungraded',[],'high',[],'mid',[],'low',[]);
 for i = 1:n
     for j = 1:m
+        idx = [i j+1];
         if isnan(s.matrix(i,j))
-            addStyle(h.tbl, uistyle('BackgroundColor',[1 0.92 0.92]), i, j+1);
+            buckets.ungraded(end+1,:) = idx; %#ok<AGROW>
         else
             frac = s.matrix(i,j) / max(s.items(j).Points_possible, eps);
             if frac >= 0.9
-                addStyle(h.tbl, uistyle('BackgroundColor',[0.90 1 0.90]), i, j+1);
+                buckets.high(end+1,:) = idx; %#ok<AGROW>
             elseif frac >= 0.5
-                addStyle(h.tbl, uistyle('BackgroundColor',[1 1 0.85]), i, j+1);
+                buckets.mid(end+1,:)  = idx; %#ok<AGROW>
             else
-                addStyle(h.tbl, uistyle('BackgroundColor',[1 0.85 0.75]), i, j+1);
+                buckets.low(end+1,:)  = idx; %#ok<AGROW>
             end
         end
     end
+end
+if ~isempty(buckets.ungraded)
+    addStyle(h.tbl, uistyle('BackgroundColor',[1 0.92 0.92]), 'cell', buckets.ungraded);
+end
+if ~isempty(buckets.high)
+    addStyle(h.tbl, uistyle('BackgroundColor',[0.90 1 0.90]), 'cell', buckets.high);
+end
+if ~isempty(buckets.mid)
+    addStyle(h.tbl, uistyle('BackgroundColor',[1 1 0.85]),    'cell', buckets.mid);
+end
+if ~isempty(buckets.low)
+    addStyle(h.tbl, uistyle('BackgroundColor',[1 0.85 0.75]), 'cell', buckets.low);
 end
 end
 
