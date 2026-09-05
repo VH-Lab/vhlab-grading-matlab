@@ -1,214 +1,201 @@
 function grade = vhgradequestion(vhgradedirname, inputitem, forceRegrade)
 % VHGRADEQUESTION - grade a question
-% 
+%
 % GRADE = VHGRADEQUESTION(DIRNAME, INPUTITEM, FORCEREGRADE)
 %
-% Grade a question specified in the structure INPUTITEM (see VHGRADEASSIGNMENT for
-% information about the structure). 
+% Grade a question specified in the structure INPUTITEM (see VHGRADEASSIGNMENT
+% for the classic fields, VHGRADELOADRUBRIC for the JSON-derived extension).
 %
-% 
+% Student code (INPUTITEM.Code) is executed by VHGRADESANDBOXRUN in an
+% isolated function-scoped workspace, so it never touches the base workspace.
+% Autograder checks read from that sandbox struct instead of the base.
 %
+% If INPUTITEM carries a .Rubric struct array (from a JSON rubric), its
+% entries are passed to the manual-grading GUI so the grader can award
+% points additively per rubric criterion. Likewise a .Comment_bank (and
+% .Shared_comment_bank) drive the additive canned-comment checklist.
 
 currpwd = pwd;
 
-  % functions needed: vhgraderesponsegui, vhgradeloadresponse
+if nargin<3
+    forceRegrade = 0;
+end
 
-if nargin<3,
-	forceRegrade = 0;
-end;
-
-grade_directory = [vhgradedirname filesep 'GRADING']
+grade_directory = [vhgradedirname filesep 'GRADING'];
 
 filename = [grade_directory filesep inputitem.Item_filename];
 
 warns = warning('state');
 warning off;
-try, mkdir(grade_directory); end;
+try, mkdir(grade_directory); end
 warning('state',warns);
 
-if isfile(filename),
-	if ~forceRegrade,
-		grade = load(filename);
-		grade = grade.grade;
-		return;
-	end;
-end;
+if isfile(filename)
+    if ~forceRegrade
+        grade = load(filename);
+        grade = grade.grade;
+        return;
+    end
+end
 
- % if we are here, we need to grade or re-grade
+% if we are here, we need to grade or re-grade
 
-grade.Item_name = inputitem.Item_name;
-grade.Subfolder = inputitem.Subfolder;
-grade.Item_filename = inputitem.Item_filename;
+grade.Item_name       = inputitem.Item_name;
+grade.Subfolder       = inputitem.Subfolder;
+grade.Item_filename   = inputitem.Item_filename;
 grade.Points_possible = inputitem.Points_possible;
-grade.Description = inputitem.Description;
-grade.Skills = inputitem.Skills;
-grade.Comment_1 = '';
-grade.Comment_2 = '';
-grade.Points_earned = 0;
-grade.CodeError = 0;
+grade.Description     = inputitem.Description;
+grade.Skills          = inputitem.Skills;
+grade.Comment_1       = '';
+grade.Comment_2       = '';
+grade.Points_earned   = 0;
+grade.CodeError       = 0;
+grade.Rubric_awarded  = [];         % logical vector (or empty), one per rubric criterion
+grade.Comments_selected = {};       % cell of labels selected from the comment bank
+grade.Autograder_score  = struct('checks_passed',[],'checks_points',[]);
 
 inputitem_alt = inputitem; % in case we edit the standard comments
 
- % Step 0: set present working directory to Subfolder
+% Step 1: run the code in a sandboxed workspace
+sandboxWs = struct();
+if isfield(inputitem,'Code') && ~isempty(inputitem.Code)
+    [sandboxWs, sandboxErr] = vhgradesandboxrun(inputitem.Code, ...
+        [vhgradedirname filesep grade.Subfolder]);
+    if ~isempty(sandboxErr)
+        grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' sandboxErr.message];
+        grade.CodeError = 2;
+        inputitem_alt.Comment_1_default = char(strrep(grade.Comment_1, char(10), ';'));
+    end
+end
 
-cd([vhgradedirname filesep grade.Subfolder]);
+% Step 2: if 'response_name', load the response for the GUI
+response_string = '';
+if strcmpi(inputitem.Parameters(1).type,'response_name')
+    if ~isempty(inputitem.Parameters(1).response_name)
+        try
+            response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
+                inputitem.Parameters(1).response_name);
+        catch
+            grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
+            save(filename,'grade','-mat');
+            return;
+        end
+    end
+end
 
- % Step 1: run the code
+% Step 3: autograder checks (vartest / anyvartest) against the sandbox workspace
+autoType = lower(inputitem.Parameters(1).type);
+if strcmp(autoType,'vartest') || strcmp(autoType,'anyvartest')
+    n = numel(inputitem.Parameters);
+    passed = false(1,n);
+    pts    = zeros(1,n);
+    fn = fieldnames(sandboxWs);
 
-if ~isempty(inputitem.Code),
-	try,
-		evalin('base', [inputitem.Code]);
-	catch,
-		% code didn't run successfully
-		grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' lasterr];
-		% here we need to pop up a dialog
-		grade.CodeError = 2;
-		if iscell(grade.Comment_1),
-			inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' ') 
-		else,
-			inputitem_alt.Comment_1_default = char(strrep(grade.Comment_1,char(10),';'));
-		end;
-	end;
-end;
+    for ci = 1:n
+        p = inputitem.Parameters(ci);
+        val = p.value;
+        tol = p.tolerance;
+        matched = false;
 
- % Step 2: if 'response_name', load it
+        if strcmp(autoType,'vartest')
+            if isfield(sandboxWs, p.varname)
+                compare = sandboxWs.(p.varname);
+                matched = valuesMatch(compare, val, tol);
+            end
+        else % anyvartest
+            for j = 1:numel(fn)
+                if valuesMatch(sandboxWs.(fn{j}), val, tol)
+                    matched = true;
+                    break;
+                end
+            end
+        end
 
-if strcmpi(inputitem.Parameters(1).type,'response_name'),
+        passed(ci) = matched;
+        if isfield(p,'points') && ~isempty(p.points) && p.points > 0
+            if matched, pts(ci) = p.points; end
+        end
+    end
 
- % load the response string
-	if ~isempty(inputitem.Parameters(1).response_name),
-		try,
-			response_string = vhgradeloadresponse([vhgradedirname filesep grade.Subfolder filesep 'response.md'], ...
-				inputitem.Parameters(1).response_name);
-		catch,
-			grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
-			save(filename,'grade','-mat');
-			return;
-		end;
-	end;
-else,
-	response_string = '';
-end;
+    grade.Autograder_score.checks_passed = passed;
+    grade.Autograder_score.checks_points = pts;
 
- % Step 3: if compare variable, do it
+    haveWeights = any(arrayfun(@(x) isfield(x,'points') && ~isempty(x.points) && x.points>0, ...
+        inputitem.Parameters));
 
-if strcmpi(inputitem.Parameters(1).type, 'vartest'),
-	variable_matched_expected = 1;
+    if all(passed)
+        grade.Points_earned = inputitem.Points_possible;
+        grade.Comment_1 = summarizeChecks(inputitem.Parameters, passed);
+        save(filename,'grade','-mat');
+        cd(currpwd);
+        return;
+    end
 
-	comment = {};
+    if haveWeights
+        % Award per-check partial credit up-front; still open the GUI so the
+        % grader can adjust and add comments.
+        grade.Points_earned = sum(pts);
+    else
+        if grade.CodeError == 0, grade.CodeError = 1; end
+    end
+    grade.Comment_1 = summarizeChecks(inputitem.Parameters, passed);
+    inputitem_alt.Comment_1_default = grade.Comment_1;
+end
 
-	for i_loop_var=1:numel(inputitem.Parameters),
-		varname = inputitem.Parameters(i_loop_var).varname;
-		value = inputitem.Parameters(i_loop_var).value;
-		tolerance = inputitem.Parameters(i_loop_var).tolerance;
-		compare = [];
-		try,
-			compare = evalin('base', varname);
-		end;
-		if ~isnumeric(compare),
-			variable_matched_expected = 0;
-		elseif numel(compare)~=numel(value),
-			variable_matched_expected = 0;
-		elseif any((abs( (compare(:)-value(:)) )) > tolerance), % fails
-			variable_matched_expected = 0;
-		end;
-		if ~variable_matched_expected,
-			grade.Comment_1 = ['Variable ' varname ' value did not match target value within tolerance.'];
-			variable_matched_expected = 0;
-                        if grade.CodeError > 0,
-				inputitem_alt.Comment_1_default = strjoin(cat(2,{inputitem_alt.Comment_1_default},grade.Comment_1{:}), '  ');
-                        else,
-                                grade.CodeError = 1;
-                                inputitem_alt.Comment_1_default = cat(2,grade.Comment_1{:});
-                                inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' ');
-                        end;
+% Step 4: ask for user input if needed
+needsGui = strcmpi(inputitem.Parameters(1).type,'manual') ...
+        || strcmpi(inputitem.Parameters(1).type,'response_name') ...
+        || grade.CodeError ...
+        || (isfield(inputitem,'Rubric') && ~isempty(inputitem.Rubric));
 
-		else,
-			comment{end+1} = ['Variable ' varname ' value matched target value within tolerance.']; 
-		end;
-	end;
-
-	if variable_matched_expected, % we are done
-		grade.Comment_1 = comment;
-		grade.Points_earned = inputitem.Points_possible;
-		save(filename,'grade','-mat');
-		return;
-	end;
-end;
-
- % Step 4: if test is 'anyvarmatch', do that
-if strcmpi(inputitem.Parameters(1).type, 'anyvartest'),
-	variable_matched_expected = 1;
-
-	comment = {};
-
-	ws = evalin('base','workspace2struct()');
-
-	for i_loop_var=1:numel(inputitem.Parameters),
-		found_this_value = 0;
-		fn = fieldnames(ws);
-		value = inputitem.Parameters(i_loop_var).value;
-		tolerance = inputitem.Parameters(i_loop_var).tolerance;
-		for j_loop_var=1:numel(fn),
-			fn{j_loop_var};
-			variable_j_matches = 1;
-			compare = getfield(ws,fn{j_loop_var});
-			if numel(compare)~=numel(value),
-				variable_j_matches = 0;
-			elseif ~isnumeric(compare),
-				variable_j_matches = 0;
-			elseif any((abs( (compare(:)-value(:)) )) > tolerance), % fails
-				variable_j_matches = 0;
-			end;
-			if variable_j_matches, % we have a match here,
-				comment{end+1} = ['Variable ' fn{j_loop_var} ' value matched target ' mat2str(value) ' within tolerance.'];
-				found_this_value = 1;
-				break;
-			end;
-		end;
-		if ~found_this_value, % we reached end of j loop and no variable matched 
-			grade.Comment_1 = cat(2,comment,{['No variable matched target value ' mat2str(value) ' within tolerance.']});
-			variable_matched_expected = 0;
-			if grade.CodeError > 0,
-				inputitem_alt.Comment_1_default = strjoin(cat(2,{inputitem_alt.Comment_1_default},grade.Comment_1{:}), '  ');
-			else,
-				grade.CodeError = 1;
-				inputitem_alt.Comment_1_default = strjoin(grade.Comment_1,' '); 
-			end;
-		end;
-	end;
-
-	if variable_matched_expected, % we are done
-		grade.Comment_1 = comment;
-		grade.Points_earned = inputitem.Points_possible;
-		inputitem_alt.Comment_1_default = grade.Comment_1;
-		save(filename,'grade','-mat');
-		return;
-	end;
-end;
-
- % Step 5: ask for user input if needed
-
-if strcmpi(inputitem.Parameters(1).type,'manual') | strcmpi(inputitem.Parameters(1).type,'response_name') | grade.CodeError,
-	mycodewindow = [];
-	if 1|grade.CodeError,
-		text_total = {};
-		for i=1:numel(inputitem.CodeFiles),
-			t_ = text2cellstr(inputitem.CodeFiles{i});
-            if eqlen(t_,{-1}), t_ = {''}; end;
-			text_total = cat(2,text_total,{['FILE: ' inputitem.CodeFiles{i} ' -----------------']},t_);
-		end;
-        if isempty(text_total), text_total = ' '; end;
-        text_total
-		mycodewindow = msgbox(text_total, 'Code window');
-	end;
-	inputitem_alt,
-	h=vhgraderesponsegui('command', 'new', 'dirname', vhgradedirname, 'grade', grade, ...
-		'response_string', response_string, 'inputgrade',inputitem_alt);
-	uiwait(h);
-	if ~isempty(mycodewindow),
-		delete(mycodewindow);
-	end;
-end;
+if needsGui
+    mycodewindow = [];
+    if 1 || grade.CodeError
+        text_total = {};
+        for i = 1:numel(inputitem.CodeFiles)
+            t_ = text2cellstr(inputitem.CodeFiles{i});
+            if eqlen(t_,{-1}), t_ = {''}; end
+            text_total = cat(2, text_total, ...
+                {['FILE: ' inputitem.CodeFiles{i} ' -----------------']}, t_);
+        end
+        if isempty(text_total), text_total = ' '; end
+        mycodewindow = msgbox(text_total, 'Code window');
+    end
+    h = vhgraderesponsegui('command','new', 'dirname', vhgradedirname, ...
+        'grade', grade, 'response_string', response_string, ...
+        'inputgrade', inputitem_alt);
+    uiwait(h);
+    if ~isempty(mycodewindow)
+        delete(mycodewindow);
+    end
+end
 
 cd(currpwd);
+
+
+% ----- helpers -----
+
+function tf = valuesMatch(compare, value, tolerance)
+tf = false;
+if ~isnumeric(compare), return; end
+if numel(compare) ~= numel(value), return; end
+if any(abs(compare(:) - value(:)) > tolerance), return; end
+tf = true;
+
+function s = summarizeChecks(params, passed)
+lines = cell(1, numel(params));
+for i = 1:numel(params)
+    if isfield(params(i),'criterion') && ~isempty(params(i).criterion)
+        label = params(i).criterion;
+    elseif isfield(params(i),'varname') && ~isempty(params(i).varname)
+        label = params(i).varname;
+    else
+        label = sprintf('check %d', i);
+    end
+    if passed(i)
+        lines{i} = sprintf('[OK]   %s matched.', label);
+    else
+        lines{i} = sprintf('[FAIL] %s did not match.', label);
+    end
+end
+s = lines;
