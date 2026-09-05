@@ -307,9 +307,16 @@ if isempty(row) || isempty(itemCol)
 end
 studentDir = fullfile(s.parentDir, s.students{row});
 item = s.items(itemCol);
-vhgradequestion(studentDir, item, 1);
-vhgradesummary(studentDir, 'PS overview', s.items);
-after = readGradeFile(studentDir, item);
+restorePath = withStudentOnPath(s.parentDir, studentDir);
+try
+    vhgradequestion(studentDir, item, 1);
+    vhgradesummary(studentDir, 'PS overview', s.items);
+    after = readGradeFile(studentDir, item);
+catch ME
+    delete(restorePath);
+    rethrow(ME);
+end
+delete(restorePath);
 refreshScan(fig);
 
 if ~isempty(after) && isfield(after,'Autograded_only') && after.Autograded_only
@@ -341,8 +348,17 @@ else
 end
 for k = idx
     studentDir = fullfile(s.parentDir, s.students{k});
-    vhgradequestion(studentDir, item, double(forceAll));
-    vhgradesummary(studentDir, 'PS overview', s.items);
+    restorePath = withStudentOnPath(s.parentDir, studentDir); %#ok<NASGU>
+    try
+        vhgradequestion(studentDir, item, double(forceAll));
+        vhgradesummary(studentDir, 'PS overview', s.items);
+    catch ME
+        clear restorePath
+        warning('vhgradeoverview:gradeFailed', ...
+            'grading %s failed: %s', s.students{k}, ME.message);
+        continue;
+    end
+    clear restorePath
 end
 refreshScan(fig);
 end
@@ -479,6 +495,27 @@ s = char(x);
 if any(s == ',' | s == '"' | s == char(10) | s == char(13))
     s = ['"' strrep(s,'"','""') '"'];
 end
+end
+
+function cleanupObj = withStudentOnPath(parentDir, studentDir)
+% Put only STUDENTDIR on the MATLAB path for the duration of the
+% returned onCleanup handle. Any other student folders under
+% PARENTDIR are removed first so the wrong student's helpers
+% cannot shadow the right one's. Path is restored when the cleanup
+% object is destroyed (returns, errors, or clear).
+ws = warning('state');
+warning('off','MATLAB:rmpath:DirNotFound');
+rmpath(genpath(parentDir));         % scrub any stale student folders
+warning(ws);
+addpath(genpath(studentDir));
+cleanupObj = onCleanup(@() removePathQuietly(studentDir));
+end
+
+function removePathQuietly(studentDir)
+ws = warning('state');
+warning('off','MATLAB:rmpath:DirNotFound');
+try, rmpath(genpath(studentDir)); end
+warning(ws);
 end
 
 
