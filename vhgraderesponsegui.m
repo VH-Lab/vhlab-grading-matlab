@@ -240,7 +240,7 @@ fullBt.ButtonPushedFcn = @(~,~) onFullCredit(fig, dirname, grade, ...
     rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
 missBt.ButtonPushedFcn = @(~,~) onMissing(fig, dirname, grade, ...
     rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
-skipBt.ButtonPushedFcn = @(~,~) close(fig);   % skip this student only
+skipBt.ButtonPushedFcn = @(~,~) delete(fig);   % skip this student only
 cancBt.ButtonPushedFcn = @(~,~) onCancelBatch(fig);
 
 % Treat window-close (X) the same as Cancel — safer: stops the batch,
@@ -292,7 +292,7 @@ catch ME
     return;
 end
 persistGrade(dirname, grade);
-close(fig);
+delete(fig);
 
 function onFullCredit(fig, dirname, grade, rubricChecks, rubric, ...
                       commentChecks, allBank, c1TA, c2TA, earnedEdit) %#ok<INUSD>
@@ -312,7 +312,7 @@ grade.Comments_selected = selected;
 grade.Rubric_awarded   = awarded;
 grade.Comment_2        = comment2;
 persistGrade(dirname, grade);
-close(fig);
+delete(fig);
 
 function tf = hasAnyComment(awarded, selected, comment1, comment2)
 tf = any(awarded) ...
@@ -328,7 +328,7 @@ grade.Comments_selected = {};
 grade.Rubric_awarded = false(1, numel(rubric));
 grade.Comment_2 = joinLines(c2TA.Value);
 persistGrade(dirname, grade);
-close(fig);
+delete(fig);
 
 
 % ==================================================================
