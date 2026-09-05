@@ -212,15 +212,21 @@ btnPanel.Layout.Row = 5; btnPanel.Layout.Column = [1 2];
 btnGrid = uigridlayout(btnPanel, [1 5]);
 btnGrid.Padding = [8 6 8 6];
 btnGrid.ColumnSpacing = 10;
-saveBt = uibutton(btnGrid, 'Text', 'Save', 'BackgroundColor', [0.85 0.95 0.85], ...
-    'FontWeight','bold', 'Tooltip','Save this grade and go to the next student.');
-fullBt = uibutton(btnGrid, 'Text', 'Full credit', ...
+if ismac
+    modLabel = @(k) ['⌘' k];
+else
+    modLabel = @(k) ['Ctrl+' k];
+end
+saveBt = uibutton(btnGrid, 'Text', ['Save  (' modLabel('S') ')'], ...
+    'BackgroundColor', [0.85 0.95 0.85], 'FontWeight','bold', ...
+    'Tooltip','Save this grade and go to the next student.');
+fullBt = uibutton(btnGrid, 'Text', ['Full credit  (' modLabel('F') ')'], ...
     'Tooltip','Award full points, save, and go to the next student.');
-missBt = uibutton(btnGrid, 'Text', 'Missing / 0', ...
+missBt = uibutton(btnGrid, 'Text', ['Missing / 0  (' modLabel('M') ')'], ...
     'Tooltip','Score 0 with a "Missing / incomplete" comment, save, and go to the next student.');
-skipBt = uibutton(btnGrid, 'Text', 'Skip this student', ...
+skipBt = uibutton(btnGrid, 'Text', ['Skip this student  (' modLabel('K') ')'], ...
     'Tooltip','Close without saving anything for this student. Batch grading continues to the next student.');
-cancBt = uibutton(btnGrid, 'Text', 'Cancel (stop batch)', ...
+cancBt = uibutton(btnGrid, 'Text', 'Cancel (stop batch)  (Esc)', ...
     'BackgroundColor', [1 0.90 0.85], ...
     'Tooltip','Close without saving AND stop the batch grading loop.');
 
@@ -246,6 +252,10 @@ cancBt.ButtonPushedFcn = @(~,~) onCancelBatch(fig);
 % Treat window-close (X) the same as Cancel — safer: stops the batch,
 % so an accidental close cannot silently move on to the next student.
 fig.CloseRequestFcn = @(~,~) onCancelBatch(fig);
+
+% Keyboard shortcuts: ⌘S / Ctrl-S = Save, ⌘F / Ctrl-F = Full credit,
+% ⌘M / Ctrl-M = Missing, ⌘K / Ctrl-K = Skip, Esc = Cancel (stop batch).
+fig.WindowKeyPressFcn = @(~,evt) onShortcut(evt, saveBt, fullBt, missBt, skipBt, cancBt);
 
 
 % ==================================================================
@@ -351,6 +361,32 @@ if ~isempty(free)
     lines{end+1} = free;
 end
 comment1 = lines;
+
+function onShortcut(evt, saveBt, fullBt, missBt, skipBt, cancBt)
+% Dispatch keyboard shortcuts to the same button handlers.
+%   ⌘/Ctrl-S = Save
+%   ⌘/Ctrl-F = Full credit
+%   ⌘/Ctrl-M = Missing / 0
+%   ⌘/Ctrl-K = Skip this student
+%   Esc      = Cancel (stop batch)
+if isempty(evt) || ~isprop(evt,'Key'), return; end
+key = lower(char(evt.Key));
+mods = {}; if isprop(evt,'Modifier'), mods = evt.Modifier; end
+cmdOrCtrl = any(ismember(lower(mods), {'command','control'}));
+btn = [];
+if strcmp(key,'escape')
+    btn = cancBt;
+elseif cmdOrCtrl
+    switch key
+        case 's', btn = saveBt;
+        case 'f', btn = fullBt;
+        case 'm', btn = missBt;
+        case 'k', btn = skipBt;
+    end
+end
+if ~isempty(btn) && isvalid(btn) && ~isempty(btn.ButtonPushedFcn)
+    feval(btn.ButtonPushedFcn, btn, []);
+end
 
 function onCancelBatch(fig)
 % Signal the caller (vhgradeoverview / vhgradeassignment) to stop the
