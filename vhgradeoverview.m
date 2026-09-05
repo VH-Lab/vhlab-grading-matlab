@@ -164,7 +164,8 @@ for i = 1:n
     end
 end
 
-itemHeaders = arrayfun(@(k) shortName(s.items(k).Item_name, 26), ...
+itemHeaders = arrayfun(@(k) sprintf('[%s] %s', ...
+    itemKind(s.items(k)), shortName(s.items(k).Item_name, 24)), ...
     1:m, 'UniformOutput', false);
 h.tbl.ColumnName = [{'Student'}, itemHeaders, {'Total'}];
 h.tbl.RowName    = {};
@@ -218,12 +219,14 @@ if n == 0
     h.summaryLbl.Text = '(no student folders found)';
     return;
 end
-lines = cell(1, m + 1);
+lines = cell(1, m + 2);
 lines{1} = sprintf('%d students × %d items', n, m);
+lines{2} = 'Kinds: [resp]=written response · [code]=runs student code · [code+resp]=both · [manual]=grader only';
 for j = 1:m
     done = sum(~isnan(s.matrix(:, j)));
-    lines{j+1} = sprintf('  %-40s  %d / %d graded (%.0f%%)', ...
-        shortName(s.items(j).Item_name, 40), done, n, 100*done/max(n,1));
+    lines{j+2} = sprintf('  [%-9s] %-40s  %d / %d graded (%.0f%%)', ...
+        itemKind(s.items(j)), shortName(s.items(j).Item_name, 40), ...
+        done, n, 100*done/max(n,1));
 end
 h.summaryLbl.Text = strjoin(lines, char(10));
 end
@@ -343,6 +346,28 @@ function name = shortName(name, n)
 name = char(name);
 if numel(name) > n
     name = [name(1:n-1) '…'];
+end
+end
+
+function k = itemKind(item)
+% Classify what a grader will encounter for this item.
+%   resp        - written response only (response_name autograder, no Code)
+%   code        - runs student Code and/or checks variables (vartest/anyvartest)
+%   code+resp   - runs Code AND asks the grader to read a response
+%   manual      - grader must judge with no autograder or code
+hasCode = false;
+if isfield(item,'Code'), hasCode = ~isempty(strtrim(char(item.Code))); end
+autoType = 'manual';
+if isfield(item,'Parameters') && ~isempty(item.Parameters)
+    autoType = lower(char(item.Parameters(1).type));
+end
+switch autoType
+    case 'response_name'
+        if hasCode, k = 'code+resp'; else, k = 'resp'; end
+    case {'vartest','anyvartest'}
+        k = 'code';
+    otherwise
+        if hasCode, k = 'code'; else, k = 'manual'; end
 end
 end
 
