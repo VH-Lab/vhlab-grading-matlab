@@ -17,6 +17,14 @@ function grade = vhgradequestion(vhgradedirname, inputitem, forceRegrade)
 
 currpwd = pwd;
 
+% Snapshot the set of open figures BEFORE this grade so we can close
+% only the ones the student's code (or the msgbox / grader UI) added,
+% and leave anything the grader had open — including this session's
+% grading dashboard — untouched. Runs regardless of exit path via
+% onCleanup.
+figsBefore = findall(groot, 'Type', 'figure');
+figCleanup = onCleanup(@() closeNewFigures(figsBefore)); %#ok<NASGU>
+
 if nargin<3
     forceRegrade = 0;
 end
@@ -216,6 +224,22 @@ if ~isnumeric(compare), return; end
 if numel(compare) ~= numel(value), return; end
 if any(abs(compare(:) - value(:)) > tolerance), return; end
 tf = true;
+
+function closeNewFigures(figsBefore)
+% Close every figure that exists NOW but did not exist when we started.
+% Uses close(...,'force') to bypass CloseRequestFcn on student figures.
+try
+    figsNow = findall(groot, 'Type', 'figure');
+    newFigs = setdiff(figsNow, figsBefore);
+    if ~isempty(newFigs)
+        for h = newFigs(:).'
+            if isvalid(h)
+                try, close(h, 'force'); catch, delete(h); end
+            end
+        end
+    end
+catch
+end
 
 function s = formatCodeError(codeText, ME)
 % Human-readable multiline error message for a sandbox failure.
