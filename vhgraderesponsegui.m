@@ -350,7 +350,6 @@ function onCancelBatch(fig)
 % a batch cancel so an accidental close cannot silently move on.
 setappdata(groot, 'vhgrade_cancelBatch', true);
 delete(fig);
-end
 
 function insertCanned(dd, allBank, c2TA)
 % Append the selected bank comment's full text to the Comment-2 box so
@@ -369,11 +368,9 @@ else
     combined = [existing char(10) char(10) txt];
 end
 c2TA.Value = splitLines(combined);
-end
 
 function s = ternaryStr(cond, a, b)
 if cond, s = a; else, s = b; end
-end
 
 function persistGrade(dirname, grade)
 grade_directory = [dirname filesep 'GRADING'];
