@@ -144,8 +144,20 @@ if strcmp(autoType,'vartest') || strcmp(autoType,'anyvartest')
     else
         if grade.CodeError == 0, grade.CodeError = 1; end
     end
-    grade.Comment_1 = summarizeChecks(inputitem.Parameters, passed);
-    inputitem_alt.Comment_1_default = grade.Comment_1;
+    % Compose the pre-fill for Comment 1: the code-error message first (if
+    % any) so the student sees exactly what broke, then the per-check
+    % summary from the autograder. Never lose the code error to the
+    % checks-summary overwrite.
+    checksSummary = summarizeChecks(inputitem.Parameters, passed);
+    if iscell(checksSummary), checksLines = checksSummary; else, checksLines = {checksSummary}; end
+    if ~isempty(codeErrorText)
+        errLines = regexp(codeErrorText, '\r?\n', 'split');
+        pieces = [errLines(:)' {''} checksLines(:)'];
+    else
+        pieces = checksLines(:)';
+    end
+    grade.Comment_1 = pieces;
+    inputitem_alt.Comment_1_default = pieces;
 end
 
 % Step 4: ask for user input if needed
