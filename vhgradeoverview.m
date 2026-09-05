@@ -26,8 +26,6 @@ state.items     = items;
 state.students  = {};        % cellstr of subdir names, sorted
 state.matrix    = [];        % numeric matrix nStudents x nItems, NaN = ungraded
 state.possible  = [items.Points_possible];
-state.selRow    = 0;
-state.selCol    = 0;
 fig.UserData    = state;
 
 buildUI(fig);
@@ -70,7 +68,9 @@ summaryLbl = uilabel(sGrid, 'Text', '', 'WordWrap','on');
 tblPanel = uipanel(gl, 'Title', 'Students × items');
 tGrid = uigridlayout(tblPanel, [1 1]); tGrid.Padding = [6 6 6 6];
 tbl = uitable(tGrid, 'Data', cell(0,0), 'ColumnEditable', false);
-tbl.CellSelectionCallback = @(src,evt) onCellSelected(fig, evt);
+tbl.SelectionType = 'cell';
+tbl.Multiselect   = 'off';
+tbl.SelectionChangedFcn = @(~,~) refreshLabels(fig);
 
 h = struct('pathLbl',pathLbl, 'selLbl',selLbl, 'summaryLbl',summaryLbl, 'tbl',tbl);
 fig.UserData.h = h;
@@ -214,58 +214,76 @@ end
 function refreshLabels(fig)
 s = fig.UserData; h = s.h;
 h.pathLbl.Text = s.parentDir;
-if s.selRow >= 1 && s.selRow <= numel(s.students) && ...
-   s.selCol >= 1 && s.selCol <= numel(s.items)
-    h.selLbl.Text = sprintf('Selected: %s / %s', ...
-        s.students{s.selRow}, s.items(s.selCol).Item_name);
-else
+[row, itemCol] = liveSelection(s);
+if isempty(row) || isempty(itemCol)
     h.selLbl.Text = '(click an item cell in the table first)';
+else
+    h.selLbl.Text = sprintf('Selected: %s / %s', ...
+        s.students{row}, s.items(itemCol).Item_name);
 end
 end
 
 
 % ==================================================================
 % ------- callbacks -------
-function onCellSelected(fig, evt)
-if isempty(evt.Indices), return; end
-row = evt.Indices(1,1);
-col = evt.Indices(1,2);
-s = fig.UserData;
-s.selRow = row;
-if col == 1
-    s.selCol = 0;                       % clicked student name — no item selected
-elseif col == numel(s.items) + 2
-    s.selCol = 0;                       % clicked Total column
-else
-    s.selCol = col - 1;                 % item columns are shifted by 1 (Student)
+function [row, itemCol, msg] = liveSelection(s)
+% Read the uitable's live Selection at call time so the buttons never
+% get out of sync with the visible highlight.
+row = []; itemCol = []; msg = '';
+try
+    sel = s.h.tbl.Selection;
+catch
+    sel = [];
 end
-fig.UserData = s;
-refreshLabels(fig);
+if isempty(sel)
+    msg = 'Click an item cell in the table first.';
+    return;
+end
+if size(sel, 2) < 2
+    msg = 'Selection is not a cell (this should not happen).';
+    return;
+end
+r = sel(1,1); c = sel(1,2);
+if r < 1 || r > numel(s.students)
+    msg = sprintf('Row %d is out of range.', r);
+    return;
+end
+if c == 1
+    msg = 'That is the Student name column — click a cell in one of the item columns.';
+    return;
+end
+if c > numel(s.items) + 1
+    msg = 'That is the Total column — click a cell in one of the item columns.';
+    return;
+end
+row = r; itemCol = c - 1;
 end
 
 function onGradeCell(fig)
 s = fig.UserData;
-if s.selRow < 1 || s.selCol < 1
-    uialert(fig, 'Select a student × item cell first.', 'No cell selected');
+[row, itemCol, msg] = liveSelection(s);
+if isempty(row) || isempty(itemCol)
+    uialert(fig, msg, 'No cell selected');
     return;
 end
-studentDir = fullfile(s.parentDir, s.students{s.selRow});
-vhgradequestion(studentDir, s.items(s.selCol), 1);
+studentDir = fullfile(s.parentDir, s.students{row});
+vhgradequestion(studentDir, s.items(itemCol), 1);
 vhgradesummary(studentDir, 'PS overview', s.items);
 refreshScan(fig);
 end
 
 function onGradeColumn(fig, forceAll)
 s = fig.UserData;
-if s.selCol < 1
-    uialert(fig, 'Select an item (click a column cell) first.', 'No item selected');
+[~, itemCol, msg] = liveSelection(s);
+if isempty(itemCol)
+    uialert(fig, msg, 'No item selected');
     return;
 end
-item = s.items(s.selCol);
+item = s.items(itemCol);
 if forceAll
     idx = 1:numel(s.students);
 else
-    idx = find(isnan(s.matrix(:, s.selCol)))';
+    idx = find(isnan(s.matrix(:, itemCol)))';
     if isempty(idx)
         uialert(fig, sprintf('All students already have "%s" graded.', item.Item_name), ...
             'Nothing to do', 'Icon','info');
