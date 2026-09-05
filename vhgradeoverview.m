@@ -184,12 +184,15 @@ end
 itemHeaders = arrayfun(@(k) sprintf('[%s] %s', ...
     vhgradeitemkind(s.items(k)), shortName(s.items(k).Item_name, 24)), ...
     1:m, 'UniformOutput', false);
-h.tbl.ColumnName = [{'Student'}, itemHeaders, {'Total'}];
+% Header order: Student | item1 ... itemM | Total | Student  (repeated
+% at the end so the Total column always has a student name next to it
+% no matter how wide the table gets).
+h.tbl.ColumnName = [{'Student'}, itemHeaders, {'Total'}, {'Student'}];
 h.tbl.RowName    = {};
-h.tbl.Data       = [s.students(:), data];
+h.tbl.Data       = [s.students(:), data, s.students(:)];
 
-% column widths
-cw = [{200}, repmat({'auto'}, 1, m), {150}];
+% column widths (extra Student column mirrors the first)
+cw = [{200}, repmat({'auto'}, 1, m), {150}, {200}];
 h.tbl.ColumnWidth = cw;
 
 % Style cells: red-ish for ungraded, green/yellow/orange by fraction earned.
@@ -287,11 +290,11 @@ if r < 1 || r > numel(s.students)
     msg = sprintf('Row %d is out of range.', r);
     return;
 end
-if c == 1
-    msg = 'That is the Student name column — click a cell in one of the item columns.';
+if c == 1 || c == numel(s.items) + 3
+    msg = 'That is a Student name column — click a cell in one of the item columns.';
     return;
 end
-if c > numel(s.items) + 1
+if c == numel(s.items) + 2
     msg = 'That is the Total column — click a cell in one of the item columns.';
     return;
 end
