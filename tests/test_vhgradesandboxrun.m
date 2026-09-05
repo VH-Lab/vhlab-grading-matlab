@@ -67,6 +67,18 @@ verifyNotEmpty(tc, err);
 verifyEqual(tc, pwd, startDir, 'pwd must be restored even when code errors');
 end
 
+function testStudentClearDoesNotBreakOutputs(tc)
+% Regression: student code that calls `clear` used to wipe the sandbox
+% function's own ws/err locals and produce "output argument not assigned"
+% on return. The subfunction-based sandbox must survive this.
+[ws, err] = vhgradesandboxrun('answer_a = 3.5; clear; answer_b = 17;');
+verifyEmpty(tc, err, 'clear in student code must not error the sandbox');
+verifyEqual(tc, ws.answer_b, 17, 'variables after clear should be captured');
+% answer_a was cleared before the snapshot, so it shouldn't be present.
+verifyFalse(tc, isfield(ws,'answer_a'), ...
+    'variables cleared by student code should not survive the snapshot');
+end
+
 function testReservedNamesNotLeaked(tc)
 % Names used inside vhgradesandboxrun (codeText, runDir, ws, err, etc.)
 % must not appear as fields in the returned workspace even though they
