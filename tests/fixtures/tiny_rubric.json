@@ -1,0 +1,66 @@
+{
+  "assignment_name": "Tiny Test Rubric",
+  "assignment_url": "http://example.invalid/tiny",
+  "points_model": "rubric_additive",
+  "shared_comment_bank": [
+    { "label": "Nice",         "text": "Nice work.",                   "points_delta": 0  },
+    { "label": "Missing",      "text": "Missing / incomplete.",        "points_delta": -1 }
+  ],
+  "items": [
+    {
+      "item_name": "Q1 response text",
+      "subfolder": "question1",
+      "item_filename": "q1.mat",
+      "points_possible": 5,
+      "description": "Answer Q1 in response.md.",
+      "skills": ["writing"],
+      "code": "",
+      "code_files": [],
+      "autograder": { "type": "response_name", "response_name": "(\\s*)#(\\s*)Q(\\s*)1" },
+      "rubric": [
+        { "name": "Attempted", "points": 3 },
+        { "name": "Reasoned",  "points": 2 }
+      ],
+      "comment_bank": [
+        { "label": "Too short", "text": "Response is too brief.", "points_delta": -1 }
+      ]
+    },
+    {
+      "item_name": "Q2 anyvartest",
+      "subfolder": "question2",
+      "item_filename": "q2.mat",
+      "points_possible": 10,
+      "description": "Set variables to expected values.",
+      "skills": ["code"],
+      "code": "close all; clear; q2;",
+      "code_files": ["q2.m"],
+      "autograder": {
+        "type": "anyvartest",
+        "checks": [
+          { "criterion": "answer_a", "value": 3.5,  "tolerance": 0.001, "points": 6 },
+          { "criterion": "answer_b", "value": 17,   "tolerance": 0.001, "points": 4 }
+        ]
+      },
+      "rubric": [
+        { "name": "answer_a correct", "points": 6 },
+        { "name": "answer_b correct", "points": 4 }
+      ],
+      "comment_bank": []
+    },
+    {
+      "item_name": "Q3 manual only",
+      "subfolder": "question3",
+      "item_filename": "q3.mat",
+      "points_possible": 4,
+      "description": "Manual only.",
+      "skills": [],
+      "code": "",
+      "code_files": [],
+      "autograder": { "type": "manual" },
+      "rubric": [
+        { "name": "Whole thing", "points": 4 }
+      ],
+      "comment_bank": []
+    }
+  ]
+}
