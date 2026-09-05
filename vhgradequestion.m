@@ -58,14 +58,17 @@ grade.Autograded_only   = false;    % true when this grade was saved without the
 inputitem_alt = inputitem; % in case we edit the standard comments
 
 % Step 1: run the code in a sandboxed workspace
-sandboxWs = struct();
+sandboxWs  = struct();
+sandboxErr = [];
+codeErrorText = '';
 if isfield(inputitem,'Code') && ~isempty(inputitem.Code)
     [sandboxWs, sandboxErr] = vhgradesandboxrun(inputitem.Code, ...
         [vhgradedirname filesep grade.Subfolder]);
     if ~isempty(sandboxErr)
-        grade.Comment_1 = ['Code ' inputitem.Code ' did not run successfully; error was ' sandboxErr.message];
+        codeErrorText = formatCodeError(inputitem.Code, sandboxErr);
+        grade.Comment_1 = codeErrorText;
         grade.CodeError = 2;
-        inputitem_alt.Comment_1_default = char(strrep(grade.Comment_1, char(10), ';'));
+        inputitem_alt.Comment_1_default = codeErrorText;
     end
 end
 
@@ -155,6 +158,11 @@ if needsGui
     mycodewindow = [];
     if 1 || grade.CodeError
         text_total = {};
+        if ~isempty(codeErrorText)
+            errLines = regexp(codeErrorText, '\r?\n', 'split');
+            text_total = cat(2, text_total, ...
+                {'*** CODE ERROR ***'}, errLines, {''});
+        end
         codeDir = fullfile(vhgradedirname, grade.Subfolder);
         for i = 1:numel(inputitem.CodeFiles)
             fname = inputitem.CodeFiles{i};
@@ -196,6 +204,24 @@ if ~isnumeric(compare), return; end
 if numel(compare) ~= numel(value), return; end
 if any(abs(compare(:) - value(:)) > tolerance), return; end
 tf = true;
+
+function s = formatCodeError(codeText, ME)
+% Human-readable multiline error message for a sandbox failure.
+lines = {};
+lines{end+1} = sprintf('The code "%s" did not run.', strtrim(char(codeText)));
+lines{end+1} = sprintf('Error: %s', ME.message);
+if isfield(ME,'stack') && ~isempty(ME.stack)
+    top = ME.stack(1);
+    where = '';
+    if isfield(top,'name') && ~isempty(top.name), where = char(top.name); end
+    if isfield(top,'line') && ~isempty(top.line)
+        where = sprintf('%s (line %d)', where, top.line);
+    end
+    if ~isempty(where)
+        lines{end+1} = sprintf('At: %s', where);
+    end
+end
+s = strjoin(lines, char(10));
 
 function s = summarizeChecks(params, passed)
 lines = cell(1, numel(params));
