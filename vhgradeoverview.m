@@ -69,8 +69,8 @@ uibutton(tb, 'Text', 'Change directory…', ...
     'ButtonPushedFcn', @(~,~) onChangeDir(fig));
 
 % ---- toolbar (row 2): summaries + exports ----
-tb2 = uigridlayout(gl, [1 4]);
-tb2.ColumnWidth = {260, 260, 260, '1x'};
+tb2 = uigridlayout(gl, [1 5]);
+tb2.ColumnWidth = {220, 220, 220, 260, '1x'};
 tb2.Padding = [0 0 0 0]; tb2.ColumnSpacing = 8;
 
 uibutton(tb2, 'Text', 'Refresh all summaries', ...
@@ -84,6 +84,11 @@ uibutton(tb2, 'Text', 'Open selected student''s summary', ...
 uibutton(tb2, 'Text', 'Export cohort CSV…', ...
     'Tooltip', 'Save a CSV with one row per student and one column per item, plus totals.', ...
     'ButtonPushedFcn', @(~,~) onExportCsv(fig));
+
+uibutton(tb2, 'Text', 'Commit & push grades to students…', ...
+    'BackgroundColor', [1 0.90 0.85], ...
+    'Tooltip', 'Runs git add GRADING/*, git commit, and (optionally) git push in every student folder. Asks twice before pushing.', ...
+    'ButtonPushedFcn', @(~,~) onCommitAndPush(fig));
 
 % (selection label lives in the hint row below the toolbar)
 
@@ -451,6 +456,73 @@ try
 catch
     edit(sumPath);       % open in MATLAB editor as a fallback
 end
+end
+
+function onCommitAndPush(fig)
+% Two-stage confirm before pushing grades back to student GitHub repos.
+%   1. Ask for the repository prefix (defaults to the workshop org).
+%   2. Show a dry-run message with an example push URL and require
+%      explicit "Commit & push" (or "Commit only" for a rehearsal).
+s = fig.UserData;
+n = numel(s.students);
+if n == 0
+    uialert(fig, 'No student folders found.', 'Nothing to push');
+    return;
+end
+
+% --- Stage 1: ask for repo prefix ---
+defaultPrefix = 'vanhooser-data-analysis-stats-workshop/';
+resp = inputdlg({'GitHub repository prefix (folder name is appended):'}, ...
+    'Commit & push to students', 1, {defaultPrefix});
+if isempty(resp), return; end
+prefix = strtrim(resp{1});
+if isempty(prefix)
+    uialert(fig, 'Empty prefix — cancelled.', 'Cancelled');
+    return;
+end
+
+% --- Stage 2: dry-run confirm ---
+sampleURL = ['https://github.com/' prefix s.students{1}];
+msg = sprintf(['This will run, inside EVERY student folder:\n\n' ...
+    '  git add GRADING/*\n' ...
+    '  git commit -a -m "grading"\n\n' ...
+    'and, if you choose "Commit & push", also:\n\n' ...
+    '  git push %s<folder>\n\n' ...
+    'across %d student folder(s). Example push URL for the first student:\n\n' ...
+    '  %s\n\n' ...
+    'Pushing will send the graded files back to the students. Continue?'], ...
+    ['https://github.com/' prefix], n, sampleURL);
+selection = uiconfirm(fig, msg, 'Push grades to students?', ...
+    'Options', {'Cancel', 'Commit only (rehearsal)', 'Commit & push'}, ...
+    'DefaultOption', 1, 'CancelOption', 1, ...
+    'Icon', 'warning');
+if strcmp(selection, 'Cancel'), return; end
+doPush = strcmp(selection, 'Commit & push');
+
+% --- Do it ---
+dlg = uiprogressdlg(fig, ...
+    'Title', ternaryStr(doPush,'Committing & pushing','Committing only'), ...
+    'Message', 'Running… output goes to the MATLAB Command Window.', ...
+    'Indeterminate','on');
+c = onCleanup(@() close(dlg)); %#ok<NASGU>
+try
+    vhgradepost2github(s.parentDir, prefix, double(doPush));
+catch ME
+    uialert(fig, sprintf('vhgradepost2github failed: %s', ME.message), 'Error');
+    return;
+end
+clear c
+
+if doPush
+    finalMsg = sprintf('Committed and pushed %d student folder(s). Check the Command Window for per-student git output.', n);
+else
+    finalMsg = sprintf('Committed (no push) in %d student folder(s). Run again with "Commit & push" when you''re ready.', n);
+end
+uialert(fig, finalMsg, 'Done', 'Icon','success');
+end
+
+function s = ternaryStr(cond, a, b)
+if cond, s = a; else, s = b; end
 end
 
 function onExportCsv(fig)
