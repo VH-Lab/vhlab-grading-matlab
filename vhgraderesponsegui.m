@@ -100,11 +100,15 @@ rightPanel.Layout.Row = 3; rightPanel.Layout.Column = 2;
 rGrid = uigridlayout(rightPanel, [2 1]); rGrid.Padding = [6 6 6 6];
 rGrid.RowHeight = {'1x', '1x'};
 
-% rubric panel
-rubricPanel = uipanel(rGrid, 'Title', 'Rubric (checkbox = award points)');
-rubricInner = uigridlayout(rubricPanel, [max(1,numel(rubric)+1) 1]);
+% rubric panel — scrollable so a long rubric doesn't clip
+rubricPanel = uipanel(rGrid, 'Title', 'Rubric (checkbox = award points)', ...
+    'Scrollable','on');
+nRubricRows = max(1, numel(rubric)+1);
+rubricInner = uigridlayout(rubricPanel, [nRubricRows 1]);
 rubricInner.Padding = [4 4 4 4];
 rubricInner.RowSpacing = 2;
+rubricInner.RowHeight = repmat({'fit'}, 1, nRubricRows);
+rubricInner.Scrollable = 'on';
 rubricChecks = gobjects(1, numel(rubric));
 for i = 1:numel(rubric)
     label = sprintf('[%g pts] %s', rubric(i).points, rubric(i).name);
@@ -114,12 +118,16 @@ if isempty(rubric)
     uilabel(rubricInner, 'Text', '(no rubric criteria)', 'FontAngle','italic');
 end
 
-% comment bank panel
-commentPanel = uipanel(rGrid, 'Title', 'Comment bank (checked comments are added)');
-commentInner = uigridlayout(commentPanel, ...
-    [max(1, numel(commentBank)+numel(sharedBank)+2) 1]);
+% comment bank panel — scrollable so a long bank doesn't clip
+commentPanel = uipanel(rGrid, ...
+    'Title', 'Comment bank (checked comments are added)', ...
+    'Scrollable','on');
+nBankRows = max(1, numel(commentBank) + numel(sharedBank) + 2);
+commentInner = uigridlayout(commentPanel, [nBankRows 1]);
 commentInner.Padding = [4 4 4 4];
 commentInner.RowSpacing = 2;
+commentInner.RowHeight = repmat({'fit'}, 1, nBankRows);
+commentInner.Scrollable = 'on';
 allBank = struct('label',{},'text',{},'points_delta',{},'source',{});
 for i = 1:numel(commentBank)
     allBank(end+1) = withSource(commentBank(i), 'item'); %#ok<AGROW>
