@@ -36,28 +36,47 @@ end
 % ==================================================================
 function buildUI(fig)
 
-gl = uigridlayout(fig, [3 1]);
-gl.RowHeight   = {56, 'fit', '1x'};
+gl = uigridlayout(fig, [4 1]);
+gl.RowHeight   = {40, 26, 'fit', '1x'};
 gl.ColumnWidth = {'1x'};
 gl.Padding     = [10 10 10 10];
-gl.RowSpacing  = 8;
+gl.RowSpacing  = 6;
 
-% ---- toolbar ----
-tb = uigridlayout(gl, [1 8]);
-tb.ColumnWidth = {90, 200, 200, 200, 200, 90, '1x', '1x'};
+% ---- toolbar (row 1) ----
+tb = uigridlayout(gl, [1 6]);
+tb.ColumnWidth = {90, 260, 260, 260, 160, '1x'};
 tb.Padding = [0 0 0 0]; tb.ColumnSpacing = 8;
-uibutton(tb, 'Text', 'Refresh', 'ButtonPushedFcn', @(~,~) refreshScan(fig));
-uibutton(tb, 'Text', 'Grade this cell', ...
+
+uibutton(tb, 'Text', 'Refresh', ...
+    'Tooltip', 'Rescan the parent directory and reload every student''s GRADING/*.mat files.', ...
+    'ButtonPushedFcn', @(~,~) refreshScan(fig));
+
+uibutton(tb, 'Text', 'Grade one cell (student × item)', ...
+    'Tooltip', 'Grade the currently-highlighted cell only. Opens the grader for that one student on that one item (force regrade).', ...
     'ButtonPushedFcn', @(~,~) onGradeCell(fig));
-uibutton(tb, 'Text', 'Resume item (ungraded)', ...
+
+uibutton(tb, 'Text', 'Grade this item for all ungraded students', ...
+    'Tooltip', 'Walk through every student who does not yet have this item graded. Skips students already graded on this item.', ...
+    'BackgroundColor', [0.85 0.95 1], ...
     'ButtonPushedFcn', @(~,~) onGradeColumn(fig, false));
-uibutton(tb, 'Text', 'Regrade full item column', ...
+
+uibutton(tb, 'Text', 'Regrade this item for ALL students (force)', ...
+    'Tooltip', 'Force-regrade every student on this item, even if it was already graded. Use if the rubric changed or you want to redo the whole column.', ...
     'ButtonPushedFcn', @(~,~) onGradeColumn(fig, true));
+
 uibutton(tb, 'Text', 'Change directory…', ...
+    'Tooltip', 'Point at a different parent directory of student folders.', ...
     'ButtonPushedFcn', @(~,~) onChangeDir(fig));
-uilabel(tb, 'Text', 'Parent:');
-pathLbl = uilabel(tb, 'Text', '', 'FontAngle','italic');
-selLbl  = uilabel(tb, 'Text', '', 'HorizontalAlignment','right');
+
+% (selection label lives in the hint row below the toolbar)
+
+% ---- hint row (row 2): parent dir + current selection ----
+hintGrid = uigridlayout(gl, [1 2]);
+hintGrid.ColumnWidth = {'1x', '1x'};
+hintGrid.Padding = [0 0 0 0]; hintGrid.ColumnSpacing = 12;
+pathLbl = uilabel(hintGrid, 'Text', '', 'FontAngle','italic');
+selLbl  = uilabel(hintGrid, 'Text', '', 'HorizontalAlignment','right', ...
+    'FontWeight','bold');
 
 % ---- summary panel ----
 summaryPanel = uipanel(gl, 'Title', 'Item completion');
@@ -267,9 +286,19 @@ if isempty(row) || isempty(itemCol)
     return;
 end
 studentDir = fullfile(s.parentDir, s.students{row});
-vhgradequestion(studentDir, s.items(itemCol), 1);
+item = s.items(itemCol);
+vhgradequestion(studentDir, item, 1);
 vhgradesummary(studentDir, 'PS overview', s.items);
+after = readGradeFile(studentDir, item);
 refreshScan(fig);
+
+if ~isempty(after) && isfield(after,'Autograded_only') && after.Autograded_only
+    txt = sprintf(['"%s" was saved without opening the manual grader.\n\n' ...
+                   'Result: %g / %g\n\nReason:\n%s'], ...
+                   item.Item_name, after.Points_earned, ...
+                   after.Points_possible, commentSummary(after));
+    uialert(fig, txt, 'Auto-saved (no UI needed)', 'Icon','info');
+end
 end
 
 function onGradeColumn(fig, forceAll)
@@ -315,4 +344,26 @@ name = char(name);
 if numel(name) > n
     name = [name(1:n-1) '…'];
 end
+end
+
+function g = readGradeFile(studentDir, item)
+g = [];
+f = fullfile(studentDir, 'GRADING', item.Item_filename);
+if isfile(f)
+    try
+        L = load(f, '-mat', 'grade');
+        if isfield(L, 'grade'), g = L.grade; end
+    catch
+    end
+end
+end
+
+function s = commentSummary(g)
+c = g.Comment_1;
+if iscell(c)
+    s = strjoin(cellfun(@char, c(:), 'UniformOutput', false), char(10));
+else
+    s = char(c);
+end
+if isempty(s), s = '(no comment)'; end
 end

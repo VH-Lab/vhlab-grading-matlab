@@ -53,6 +53,7 @@ grade.CodeError       = 0;
 grade.Rubric_awarded  = [];         % logical vector (or empty), one per rubric criterion
 grade.Comments_selected = {};       % cell of labels selected from the comment bank
 grade.Autograder_score  = struct('checks_passed',[],'checks_points',[]);
+grade.Autograded_only   = false;    % true when this grade was saved without the manual GUI
 
 inputitem_alt = inputitem; % in case we edit the standard comments
 
@@ -77,6 +78,7 @@ if strcmpi(inputitem.Parameters(1).type,'response_name')
                 inputitem.Parameters(1).response_name);
         catch
             grade.Comment_1 = ['Response ' inputitem.Parameters(1).response_name ' not found in response.md'];
+            grade.Autograded_only = true;
             save(filename,'grade','-mat');
             return;
         end
@@ -126,6 +128,7 @@ if strcmp(autoType,'vartest') || strcmp(autoType,'anyvartest')
     if all(passed)
         grade.Points_earned = inputitem.Points_possible;
         grade.Comment_1 = summarizeChecks(inputitem.Parameters, passed);
+        grade.Autograded_only = true;
         save(filename,'grade','-mat');
         cd(currpwd);
         return;
