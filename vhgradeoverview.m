@@ -191,8 +191,10 @@ h.tbl.ColumnName = [{'Student'}, itemHeaders, {'Total'}, {'Student'}];
 h.tbl.RowName    = {};
 h.tbl.Data       = [s.students(:), data, s.students(:)];
 
-% column widths (extra Student column mirrors the first)
-cw = [{200}, repmat({'auto'}, 1, m), {150}, {200}];
+% Column widths: compact item cells so the trailing Student column
+% stays visible without horizontal scrolling. Cell content is short
+% (e.g. "18 / 20") so 105 px is plenty.
+cw = [{200}, repmat({105}, 1, m), {150}, {200}];
 h.tbl.ColumnWidth = cw;
 
 % Style cells: red-ish for ungraded, green/yellow/orange by fraction earned.
