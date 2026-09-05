@@ -98,6 +98,7 @@ end
 
 % Step 3: autograder checks (vartest / anyvartest) against the sandbox workspace
 autoType = lower(inputitem.Parameters(1).type);
+autograderNotFullyPassed = false;   % set below if the autograder ran but some check failed
 if strcmp(autoType,'vartest') || strcmp(autoType,'anyvartest')
     n = numel(inputitem.Parameters);
     passed = false(1,n);
@@ -145,6 +146,7 @@ if strcmp(autoType,'vartest') || strcmp(autoType,'anyvartest')
         return;
     end
 
+    autograderNotFullyPassed = true;
     if haveWeights
         % Award per-check partial credit up-front; still open the GUI so the
         % grader can adjust and add comments.
@@ -172,11 +174,16 @@ end
 needsGui = strcmpi(inputitem.Parameters(1).type,'manual') ...
         || strcmpi(inputitem.Parameters(1).type,'response_name') ...
         || grade.CodeError ...
-        || (isfield(inputitem,'Rubric') && ~isempty(inputitem.Rubric));
+        || (isfield(inputitem,'Rubric') && ~isempty(inputitem.Rubric)) ...
+        || autograderNotFullyPassed;  % code-only items where checks failed
 
 if needsGui
     mycodewindow = [];
-    if 1 || grade.CodeError
+    % Open the code preview window whenever there IS code (or an error
+    % from running it) to look at. Pure response items skip this.
+    haveAnyCode = ~isempty(codeErrorText) ...
+        || (isfield(inputitem,'CodeFiles') && ~isempty(inputitem.CodeFiles));
+    if haveAnyCode
         text_total = {};
         if ~isempty(codeErrorText)
             errLines = regexp(codeErrorText, '\r?\n', 'split');
