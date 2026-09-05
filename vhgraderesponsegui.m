@@ -63,8 +63,8 @@ if ~isstruct(inputgrade), inputgrade = struct(); end
 rubric      = getfielddef(inputgrade, 'Rubric', []);
 commentBank = getfielddef(inputgrade, 'Comment_bank', []);
 sharedBank  = getfielddef(inputgrade, 'Shared_comment_bank', []);
-c1def       = char(getfielddef(inputgrade, 'Comment_1_default', ''));
-c2def       = char(getfielddef(inputgrade, 'Comment_2_default', ''));
+c1def       = getfielddef(inputgrade, 'Comment_1_default', '');
+c2def       = getfielddef(inputgrade, 'Comment_2_default', '');
 
 pointsPossible = getfielddef(grade, 'Points_possible', 0);
 
@@ -332,18 +332,30 @@ s.points_delta = double(x.points_delta);
 s.source       = src;
 
 function c = splitLines(x)
+% Normalise anything text-shaped into a Nx1 cellstr suitable for
+% assigning to a uitextarea's Value: '' | char row | char matrix |
+% cellstr | string array.
 if isempty(x)
     c = {''}; return;
 end
 if iscell(x)
-    c = x(:);
+    c = cellfun(@char, x(:), 'UniformOutput', false);
     return;
 end
 if isstring(x)
-    x = char(x);
+    c = cellstr(x(:));
+    return;
 end
-c = regexp(x, '\r?\n', 'split');
-c = c(:);
+if ischar(x)
+    if size(x, 1) > 1
+        c = cellstr(x);      % each row → one cell
+        return;
+    end
+    c = regexp(x, '\r?\n', 'split');
+    c = c(:);
+    return;
+end
+c = {char(string(x))};
 
 function s = joinLines(x)
 if isempty(x)
