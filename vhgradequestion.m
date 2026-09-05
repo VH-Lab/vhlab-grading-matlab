@@ -164,6 +164,7 @@ if needsGui
     h = vhgraderesponsegui('command','new', 'dirname', vhgradedirname, ...
         'grade', grade, 'response_string', response_string, ...
         'inputgrade', inputitem_alt);
+    try, figure(h); end   % pop the grader to the front
     uiwait(h);
     if ~isempty(mycodewindow)
         delete(mycodewindow);

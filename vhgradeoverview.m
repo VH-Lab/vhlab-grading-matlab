@@ -26,8 +26,8 @@ state.items     = items;
 state.students  = {};        % cellstr of subdir names, sorted
 state.matrix    = [];        % numeric matrix nStudents x nItems, NaN = ungraded
 state.possible  = [items.Points_possible];
-state.selRow    = 1;
-state.selCol    = 1;
+state.selRow    = 0;
+state.selCol    = 0;
 fig.UserData    = state;
 
 buildUI(fig);
@@ -219,7 +219,7 @@ if s.selRow >= 1 && s.selRow <= numel(s.students) && ...
     h.selLbl.Text = sprintf('Selected: %s / %s', ...
         s.students{s.selRow}, s.items(s.selCol).Item_name);
 else
-    h.selLbl.Text = '';
+    h.selLbl.Text = '(click an item cell in the table first)';
 end
 end
 
