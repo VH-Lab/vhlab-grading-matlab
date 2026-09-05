@@ -152,15 +152,35 @@ bGrid.ColumnWidth = {'2x','1x'};
 bGrid.Padding = [6 6 6 6];
 bGrid.ColumnSpacing = 8;
 
-% two free-text comment areas
+% two free-text comment areas + a canned-comment insert row
 extraPanel = uipanel(bGrid, 'Title', 'Additional comments (free text)');
-extraGrid = uigridlayout(extraPanel, [2 1]);
+extraGrid = uigridlayout(extraPanel, [3 1]);
+extraGrid.RowHeight = {'fit','1x','1x'};
 extraGrid.Padding = [4 4 4 4];
 extraGrid.RowSpacing = 4;
+
+insertRow = uigridlayout(extraGrid, [1 3]);
+insertRow.ColumnWidth = {130, '1x', 160};
+insertRow.Padding = [0 0 0 0]; insertRow.ColumnSpacing = 4;
+uilabel(insertRow, 'Text', 'Insert canned comment:');
+if isempty(allBank)
+    bankItems = {'(no canned comments)'};
+else
+    bankItems = arrayfun(@(k) sprintf('%s%s', allBank(k).label, ...
+        ternaryStr(allBank(k).points_delta ~= 0, ...
+            sprintf(' [%+g]', allBank(k).points_delta), '')), ...
+        1:numel(allBank), 'UniformOutput', false);
+end
+insertDD = uidropdown(insertRow, 'Items', bankItems);
+insertBt = uibutton(insertRow, 'Text', 'Insert → Comment 2', ...
+    'Tooltip', 'Copy the selected canned comment''s full text into the Extra comment 2 box below so you can edit it before saving.');
+
 c1TA = uitextarea(extraGrid, 'Value', splitLines(c1def), ...
     'Placeholder','Extra comment 1');
 c2TA = uitextarea(extraGrid, 'Value', splitLines(c2def), ...
-    'Placeholder','Extra comment 2');
+    'Placeholder','Extra comment 2 (good place for a customised message)');
+
+insertBt.ButtonPushedFcn = @(~,~) insertCanned(insertDD, allBank, c2TA);
 
 % points display
 ptsPanel = uipanel(bGrid, 'Title', 'Points');
@@ -181,14 +201,20 @@ useAutoBt = uibutton(ptsGrid, 'Text', 'Use auto', ...
 % -------- row 5: action buttons in a horizontal strip --------
 btnPanel = uipanel(gl, 'Title', 'Actions');
 btnPanel.Layout.Row = 5; btnPanel.Layout.Column = [1 2];
-btnGrid = uigridlayout(btnPanel, [1 4]);
+btnGrid = uigridlayout(btnPanel, [1 5]);
 btnGrid.Padding = [8 6 8 6];
 btnGrid.ColumnSpacing = 10;
 saveBt = uibutton(btnGrid, 'Text', 'Save', 'BackgroundColor', [0.85 0.95 0.85], ...
-    'FontWeight','bold');
-fullBt = uibutton(btnGrid, 'Text', 'Full credit');
-missBt = uibutton(btnGrid, 'Text', 'Missing / 0');
-cancBt = uibutton(btnGrid, 'Text', 'Cancel');
+    'FontWeight','bold', 'Tooltip','Save this grade and go to the next student.');
+fullBt = uibutton(btnGrid, 'Text', 'Full credit', ...
+    'Tooltip','Award full points, save, and go to the next student.');
+missBt = uibutton(btnGrid, 'Text', 'Missing / 0', ...
+    'Tooltip','Score 0 with a "Missing / incomplete" comment, save, and go to the next student.');
+skipBt = uibutton(btnGrid, 'Text', 'Skip this student', ...
+    'Tooltip','Close without saving anything for this student. Batch grading continues to the next student.');
+cancBt = uibutton(btnGrid, 'Text', 'Cancel (stop batch)', ...
+    'BackgroundColor', [1 0.90 0.85], ...
+    'Tooltip','Close without saving AND stop the batch grading loop.');
 
 % wire callbacks — capture handles in closure
 recalc = @() recalcAuto(rubricChecks, commentChecks, allBank, autoLbl, earnedEdit);
@@ -206,7 +232,12 @@ fullBt.ButtonPushedFcn = @(~,~) onFullCredit(fig, dirname, grade, ...
     rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
 missBt.ButtonPushedFcn = @(~,~) onMissing(fig, dirname, grade, ...
     rubricChecks, rubric, commentChecks, allBank, c1TA, c2TA, earnedEdit);
-cancBt.ButtonPushedFcn = @(~,~) close(fig);
+skipBt.ButtonPushedFcn = @(~,~) close(fig);   % skip this student only
+cancBt.ButtonPushedFcn = @(~,~) onCancelBatch(fig);
+
+% Treat window-close (X) the same as Cancel — safer: stops the batch,
+% so an accidental close cannot silently move on to the next student.
+fig.CloseRequestFcn = @(~,~) onCancelBatch(fig);
 
 
 % ==================================================================
@@ -312,6 +343,37 @@ if ~isempty(free)
     lines{end+1} = free;
 end
 comment1 = lines;
+
+function onCancelBatch(fig)
+% Signal the caller (vhgradeoverview / vhgradeassignment) to stop the
+% batch after this fig closes. Also treats the OS window-close (X) as
+% a batch cancel so an accidental close cannot silently move on.
+setappdata(groot, 'vhgrade_cancelBatch', true);
+delete(fig);
+end
+
+function insertCanned(dd, allBank, c2TA)
+% Append the selected bank comment's full text to the Comment-2 box so
+% the grader can edit it before saving.
+if isempty(allBank), return; end
+% Match by label (dropdown items are "label [±N]"); strip the [±N] tail.
+val = char(dd.Value);
+label = regexprep(val, '\s\[[-+]?[\d\.]+\]$', '');
+idx = find(strcmp({allBank.label}, label), 1);
+if isempty(idx), return; end
+txt = allBank(idx).text;
+existing = joinLines(c2TA.Value);
+if isempty(strtrim(existing))
+    combined = txt;
+else
+    combined = [existing char(10) char(10) txt];
+end
+c2TA.Value = splitLines(combined);
+end
+
+function s = ternaryStr(cond, a, b)
+if cond, s = a; else, s = b; end
+end
 
 function persistGrade(dirname, grade)
 grade_directory = [dirname filesep 'GRADING'];

@@ -346,6 +346,8 @@ else
         return;
     end
 end
+setappdata(groot, 'vhgrade_cancelBatch', false);
+cancelled = false;
 for k = idx
     studentDir = fullfile(s.parentDir, s.students{k});
     restorePath = withStudentOnPath(s.parentDir, studentDir); %#ok<NASGU>
@@ -359,8 +361,18 @@ for k = idx
         continue;
     end
     clear restorePath
+    if getappdata(groot, 'vhgrade_cancelBatch')
+        cancelled = true;
+        break;
+    end
 end
+setappdata(groot, 'vhgrade_cancelBatch', false);
 refreshScan(fig);
+if cancelled
+    uialert(fig, ...
+        sprintf('Batch grading of "%s" stopped by Cancel. Already-graded students are saved; ungraded students are untouched.', item.Item_name), ...
+        'Batch cancelled', 'Icon','info');
+end
 end
 
 function onChangeDir(fig)
