@@ -155,11 +155,22 @@ if needsGui
     mycodewindow = [];
     if 1 || grade.CodeError
         text_total = {};
+        codeDir = fullfile(vhgradedirname, grade.Subfolder);
         for i = 1:numel(inputitem.CodeFiles)
-            t_ = text2cellstr(inputitem.CodeFiles{i});
-            if eqlen(t_,{-1}), t_ = {''}; end
+            fname = inputitem.CodeFiles{i};
+            fpath = fullfile(codeDir, fname);
+            if isfile(fpath)
+                try
+                    t_ = text2cellstr(fpath);
+                    if eqlen(t_,{-1}), t_ = {''}; end
+                catch ME
+                    t_ = {['(could not read ' fpath ': ' ME.message ')']};
+                end
+            else
+                t_ = {'(file not found in student folder)'};
+            end
             text_total = cat(2, text_total, ...
-                {['FILE: ' inputitem.CodeFiles{i} ' -----------------']}, t_);
+                {['FILE: ' fname ' -----------------']}, t_);
         end
         if isempty(text_total), text_total = ' '; end
         mycodewindow = msgbox(text_total, 'Code window');
