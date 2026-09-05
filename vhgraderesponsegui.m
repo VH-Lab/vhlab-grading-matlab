@@ -35,7 +35,7 @@ varlist = {'command','fig','dirname','grade','inputgrade','response_string','win
 assign(varargin{:});
 
 if isempty(fig)
-    fig = uifigure('Name', windowlabel, 'Position', [50 50 1000 720]);
+    fig = uifigure('Name', windowlabel, 'Position', [50 50 1000 820]);
 end
 
 switch command
@@ -61,8 +61,8 @@ c2def       = char(getfielddef(inputgrade, 'Comment_2_default', ''));
 pointsPossible = getfielddef(grade, 'Points_possible', 0);
 
 % -------- top: title + description --------
-gl = uigridlayout(fig, [4 2]);
-gl.RowHeight   = {36, 80, '1x', 60};
+gl = uigridlayout(fig, [5 2]);
+gl.RowHeight   = {36, 80, '1x', 180, 56};
 gl.ColumnWidth = {'1.4x', '1x'};
 gl.Padding     = [10 10 10 10];
 gl.RowSpacing  = 8;
@@ -131,17 +131,19 @@ if isempty(allBank)
     uilabel(commentInner, 'Text', '(no comment bank)', 'FontAngle','italic');
 end
 
-% -------- bottom: free-text comments + points + buttons --------
+% -------- row 4: free-text comments + points panel --------
 bottomPanel = uipanel(gl);
 bottomPanel.Layout.Row = 4; bottomPanel.Layout.Column = [1 2];
-bGrid = uigridlayout(bottomPanel, [1 3]);
-bGrid.ColumnWidth = {'2x','1.4x','1x'};
+bGrid = uigridlayout(bottomPanel, [1 2]);
+bGrid.ColumnWidth = {'2x','1x'};
 bGrid.Padding = [6 6 6 6];
 bGrid.ColumnSpacing = 8;
 
 % two free-text comment areas
 extraPanel = uipanel(bGrid, 'Title', 'Additional comments (free text)');
 extraGrid = uigridlayout(extraPanel, [2 1]);
+extraGrid.Padding = [4 4 4 4];
+extraGrid.RowSpacing = 4;
 c1TA = uitextarea(extraGrid, 'Value', splitLines(c1def), ...
     'Placeholder','Extra comment 1');
 c2TA = uitextarea(extraGrid, 'Value', splitLines(c2def), ...
@@ -151,7 +153,9 @@ c2TA = uitextarea(extraGrid, 'Value', splitLines(c2def), ...
 ptsPanel = uipanel(bGrid, 'Title', 'Points');
 ptsGrid = uigridlayout(ptsPanel, [2 3]);
 ptsGrid.RowHeight   = {'fit','fit'};
-ptsGrid.ColumnWidth = {'fit','fit','fit'};
+ptsGrid.ColumnWidth = {'fit',80,'fit'};
+ptsGrid.Padding = [8 8 8 8];
+ptsGrid.RowSpacing = 6; ptsGrid.ColumnSpacing = 6;
 uilabel(ptsGrid, 'Text', 'Earned:');
 earnedEdit = uieditfield(ptsGrid, 'numeric', 'Value', 0, ...
     'Limits',[-inf inf], 'AllowEmpty',false);
@@ -161,10 +165,14 @@ autoLbl  = uilabel(ptsGrid, 'Text', '0', 'FontWeight','bold');
 useAutoBt = uibutton(ptsGrid, 'Text', 'Use auto', ...
     'ButtonPushedFcn', @(~,~) set(earnedEdit,'Value', str2doubleSafe(autoLbl.Text)));
 
-% buttons
-btnPanel = uipanel(bGrid, 'Title', 'Actions');
-btnGrid = uigridlayout(btnPanel, [4 1]);
-saveBt = uibutton(btnGrid, 'Text', 'Save', 'BackgroundColor', [0.85 0.95 0.85]);
+% -------- row 5: action buttons in a horizontal strip --------
+btnPanel = uipanel(gl, 'Title', 'Actions');
+btnPanel.Layout.Row = 5; btnPanel.Layout.Column = [1 2];
+btnGrid = uigridlayout(btnPanel, [1 4]);
+btnGrid.Padding = [8 6 8 6];
+btnGrid.ColumnSpacing = 10;
+saveBt = uibutton(btnGrid, 'Text', 'Save', 'BackgroundColor', [0.85 0.95 0.85], ...
+    'FontWeight','bold');
 fullBt = uibutton(btnGrid, 'Text', 'Full credit');
 missBt = uibutton(btnGrid, 'Text', 'Missing / 0');
 cancBt = uibutton(btnGrid, 'Text', 'Cancel');
