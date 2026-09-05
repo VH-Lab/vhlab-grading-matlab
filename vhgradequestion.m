@@ -200,8 +200,9 @@ if needsGui
             text_total = cat(2, text_total, ...
                 {['FILE: ' fname ' -----------------']}, t_);
         end
-        if isempty(text_total), text_total = ' '; end
-        mycodewindow = msgbox(text_total, 'Code window');
+        if isempty(text_total), text_total = {' '}; end
+        if ischar(text_total), text_total = {text_total}; end
+        mycodewindow = makeCodeWindow(text_total);
     end
     h = vhgraderesponsegui('command','new', 'dirname', vhgradedirname, ...
         'grade', grade, 'response_string', response_string, ...
@@ -224,6 +225,21 @@ if ~isnumeric(compare), return; end
 if numel(compare) ~= numel(value), return; end
 if any(abs(compare(:) - value(:)) > tolerance), return; end
 tf = true;
+
+function fig = makeCodeWindow(lines)
+% Selectable/copyable code preview window (replaces the old msgbox,
+% whose label text could not be selected). Uses the platform's fixed
+% width font.
+fixedFont = 'Menlo';
+try, fixedFont = get(0,'FixedWidthFontName'); catch, end
+fig = uifigure('Name', 'Code window', 'Position', [80 80 760 520]);
+gl  = uigridlayout(fig, [1 1]); gl.Padding = [6 6 6 6];
+uitextarea(gl, ...
+    'Value',    lines, ...
+    'Editable', 'off', ...
+    'FontName', fixedFont, ...
+    'FontSize', 12, ...
+    'Tooltip',  'Click and drag to select. Cmd/Ctrl-A selects all. Cmd/Ctrl-C copies.');
 
 function closeNewFigures(figsBefore)
 % Close every figure that exists NOW but did not exist when we started.
